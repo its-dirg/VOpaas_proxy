@@ -134,11 +134,14 @@ def create_signed_entities_descriptor(entity_descriptors, security_context, vali
     return xmldoc
 
 
-def create_signed_entity_descriptor(entity_descriptor, security_context, valid_for=None):
+def create_signed_entity_descriptor(entity_descriptor, security_context, valid_for=None, sign_alg=None,
+                                    digest_alg=None):
     """
     :param entity_descriptor: the entity descriptor to sign
     :param security_context: security context for the signature
     :param valid_for: number of hours the metadata should be valid
+    :param sign_alg: signature algorithm from saml2.xmldsig
+    :param digest_alg: digest algorithm from saml2.xmldsig
     :return: the signed XML document
 
     :type entity_descriptor: saml2.md.EntityDescriptor]
@@ -148,7 +151,9 @@ def create_signed_entity_descriptor(entity_descriptor, security_context, valid_f
     if valid_for:
         entity_descriptor.valid_until = in_a_while(hours=valid_for)
 
-    entity_desc, xmldoc = sign_entity_descriptor(entity_descriptor, None, security_context)
+    entity_desc, xmldoc = sign_entity_descriptor(entity_descriptor, None, security_context,
+                                                 sign_alg=sign_alg,
+                                                 digest_alg=digest_alg)
 
     if not valid_instance(entity_desc):
         raise ValueError("Could not construct valid EntityDescriptor tag")
