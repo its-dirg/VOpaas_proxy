@@ -16,6 +16,7 @@ import satosa.logging_util as lu
 from satosa.internal import InternalData
 from satosa.micro_services.base import ResponseMicroService
 from satosa.response import Redirect
+from satosa.util import join_paths
 
 
 logger = logging.getLogger(__name__)
@@ -238,4 +239,11 @@ class Consent(ResponseMicroService):
 
         :return: A list of endpoints bound to a function
         """
-        return [("^consent%s$" % self.endpoint, self._handle_consent_response)]
+        return [
+            (
+                "^{}$".format(
+                    join_paths(self.base_path, "consent", self.endpoint)
+                ),
+                self._handle_consent_response,
+            )
+        ]

@@ -17,6 +17,7 @@ from werkzeug.wrappers import Response
 from satosa.metadata_creation.saml_metadata import create_entity_descriptors
 from satosa.proxy_server import make_app
 from satosa.satosa_config import SATOSAConfig
+from satosa.util import join_paths
 from tests.users import USERS
 from tests.users import OIDC_USERS
 from tests.util import FakeIdP
@@ -27,6 +28,7 @@ CLIENT_SECRET = "secret"
 CLIENT_REDIRECT_URI = "https://client.example.com/cb"
 REDIRECT_URI = "https://client.example.com/cb"
 DB_URI = "mongodb://localhost/satosa"
+EXTRA_ISSUER = "<base_url>/other/op"
 
 @pytest.fixture(scope="session")
 def client_db_path(tmpdir_factory):
@@ -52,7 +54,6 @@ def oidc_frontend_config(signing_key_path):
         "module": "satosa.frontends.openid_connect.OpenIDConnectFrontend",
         "name": "OIDCFrontend",
         "config": {
-            "issuer": "https://proxy-op.example.com",
             "signing_key_path": signing_key_path,
             "provider": {"response_types_supported": ["id_token"]},
             "client_db_uri": DB_URI,  # use mongodb for integration testing
@@ -69,7 +70,6 @@ def oidc_stateless_frontend_config(signing_key_path, client_db_path):
         "module": "satosa.frontends.openid_connect.OpenIDConnectFrontend",
         "name": "OIDCFrontend",
         "config": {
-            "issuer": "https://proxy-op.example.com",
             "signing_key_path": signing_key_path,
             "client_db_path": client_db_path,
             "db_uri": "stateless://user:abc123@localhost",
@@ -94,11 +94,18 @@ class TestOIDCToSAML:
             "response_types": ["id_token"]
         }
 
+    def _discover_provider(self, client, provider):
+        discovery_path = (
+            join_paths(urlparse(provider).path, ".well-known/openid-configuration")
+        )
+        return json.loads(client.get(discovery_path).data.decode("utf-8"))
+
     def test_full_flow(self, satosa_config_dict, oidc_frontend_config, saml_backend_config, idp_conf):
         self._client_setup()
         subject_id = "testuser1"
 
         # proxy config
+        oidc_frontend_config["config"]["provider"]["issuer"] = EXTRA_ISSUER
         satosa_config_dict["FRONTEND_MODULES"] = [oidc_frontend_config]
         satosa_config_dict["BACKEND_MODULES"] = [saml_backend_config]
         satosa_config_dict["INTERNAL_ATTRIBUTES"]["attributes"] = {attr_name: {"openid": [attr_name],
@@ -110,7 +117,8 @@ class TestOIDCToSAML:
         test_client = Client(make_app(SATOSAConfig(satosa_config_dict)), Response)
 
         # get frontend OP config info
-        provider_config = json.loads(test_client.get("/.well-known/openid-configuration").data.decode("utf-8"))
+        issuer = EXTRA_ISSUER.replace("<base_url>", satosa_config_dict["BASE"])
+        provider_config = self._discover_provider(test_client, issuer)
 
         # create auth req
         claims_request = ClaimsRequest(id_token=Claims(**{k: None for k in USERS[subject_id]}))
@@ -168,7 +176,8 @@ class TestOIDCToSAML:
         test_client = Client(make_app(SATOSAConfig(satosa_config_dict)), Response)
 
         # get frontend OP config info
-        provider_config = json.loads(test_client.get("/.well-known/openid-configuration").data.decode("utf-8"))
+        issuer = satosa_config_dict["BASE"]
+        provider_config = self._discover_provider(test_client, issuer)
 
         # create auth req
         claims_request = ClaimsRequest(id_token=Claims(**{k: None for k in USERS[subject_id]}))
@@ -226,7 +235,8 @@ class TestOIDCToSAML:
         test_client = Client(make_app(SATOSAConfig(satosa_config_dict)), Response)
 
         # get frontend OP config info
-        provider_config = json.loads(test_client.get("/.well-known/openid-configuration").data.decode("utf-8"))
+        issuer = satosa_config_dict["BASE"]
+        provider_config = self._discover_provider(test_client, issuer)
 
         # create auth req
         claims_request = ClaimsRequest(id_token=Claims(**{k: None for k in USERS[subject_id]}))

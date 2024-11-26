@@ -33,6 +33,7 @@ from .base import FrontendModule
 from ..response import Response
 from ..response import ServiceError
 from ..saml_util import make_saml_response
+from ..util import join_paths
 from satosa.exception import SATOSAError
 from satosa.exception import SATOSABadRequestError
 from satosa.exception import SATOSAMissingStateError
@@ -119,7 +120,7 @@ class SAMLFrontend(FrontendModule, SAMLBaseModule):
 
         if self.enable_metadata_reload():
             url_map.append(
-                ("^%s/%s$" % (self.name, "reload-metadata"), self._reload_metadata))
+                ("^%s/%s$" % (self.endpoint_basepath, "reload-metadata"), self._reload_metadata))
 
         self.idp_config = self._build_idp_config_endpoints(
             self.config[self.KEY_IDP_CONFIG], backend_names)
@@ -553,15 +554,20 @@ class SAMLFrontend(FrontendModule, SAMLBaseModule):
         """
         url_map = []
 
+        backend_providers = "(" + "|".join(providers) + ")"
         for endp_category in self.endpoints:
             for binding, endp in self.endpoints[endp_category].items():
-                valid_providers = ""
-                for provider in providers:
-                    valid_providers = "{}|^{}".format(valid_providers, provider)
-                valid_providers = valid_providers.lstrip("|")
-                parsed_endp = urlparse(endp)
-                url_map.append(("(%s)/%s$" % (valid_providers, parsed_endp.path),
-                                functools.partial(self.handle_authn_request, binding_in=binding)))
+                endp_path = urlparse(endp).path
+                url_map.append(
+                    (
+                        "^{}$".format(
+                            join_paths(self.base_path, backend_providers, endp_path)
+                        ),
+                        functools.partial(
+                            self.handle_authn_request, binding_in=binding
+                        ),
+                    )
+                )
 
         if self.expose_entityid_endpoint():
             logger.debug("Exposing frontend entity endpoint = {}".format(self.idp.config.entityid))
@@ -717,10 +723,17 @@ class SAMLMirrorFrontend(SAMLFrontend):
         :param context:
         :return: An idp server
         """
-        target_entity_id = context.target_entity_id_from_path()
+        target_entity_id = self._target_entity_id_from_path(context.path)
         idp_conf_file = self._load_endpoints_to_config(context.target_backend, target_entity_id)
         idp_config = IdPConfig().load(idp_conf_file)
         return Server(config=idp_config)
+
+    def _target_entity_id_from_path(self, request_path):
+        path = request_path.lstrip("/")
+        base_path = urlparse(self.base_url).path.lstrip("/")
+        if base_path and path.startswith(base_path):
+            path = path[len(base_path):].lstrip("/")
+        return path.split("/")[1]
 
     def _load_idp_dynamic_entity_id(self, state):
         """
@@ -747,7 +760,7 @@ class SAMLMirrorFrontend(SAMLFrontend):
         :type binding_in: str
         :rtype: satosa.response.Response
         """
-        target_entity_id = context.target_entity_id_from_path()
+        target_entity_id = self._target_entity_id_from_path(context.path)
         target_entity_id = urlsafe_b64decode(target_entity_id).decode()
         context.decorate(Context.KEY_TARGET_ENTITYID, target_entity_id)
 
@@ -765,7 +778,7 @@ class SAMLMirrorFrontend(SAMLFrontend):
         :rtype: dict[str, dict[str, str] | str]
         """
         state = super()._create_state_data(context, resp_args, relay_state)
-        state["target_entity_id"] = context.target_entity_id_from_path()
+        state["target_entity_id"] = self._target_entity_id_from_path(context.path)
         return state
 
     def handle_backend_error(self, exception):
@@ -800,14 +813,20 @@ class SAMLMirrorFrontend(SAMLFrontend):
         """
         url_map = []
 
+        backend_providers = "(" + "|".join(providers) + ")"
         for endp_category in self.endpoints:
             for binding, endp in self.endpoints[endp_category].items():
-                valid_providers = "|^".join(providers)
-                parsed_endp = urlparse(endp)
+                endp_path = urlparse(endp).path
                 url_map.append(
                     (
-                        r"(^{})/\S+/{}".format(valid_providers, parsed_endp.path),
-                        functools.partial(self.handle_authn_request, binding_in=binding)
+                        "^{}$".format(
+                            join_paths(
+                                self.base_path, backend_providers, "\S+", endp_path
+                            )
+                        ),
+                        functools.partial(
+                            self.handle_authn_request, binding_in=binding
+                        ),
                     )
                 )
 

@@ -11,7 +11,7 @@ from satosa.state import State
 from .util import create_metadata_from_config_dict
 from .util import generate_cert, write_cert
 
-BASE_URL = "https://test-proxy.com"
+BASE_URL = "https://test-proxy.com/satosa"
 
 
 @pytest.fixture(scope="session")
@@ -38,7 +38,7 @@ def cert_and_key(tmpdir):
 
 @pytest.fixture
 def sp_conf(cert_and_key):
-    sp_base = "http://example.com"
+    sp_base = "http://example.com/test"
     spconfig = {
         "entityid": "{}/unittest_sp.xml".format(sp_base),
         "service": {
@@ -64,7 +64,7 @@ def sp_conf(cert_and_key):
 
 @pytest.fixture
 def idp_conf(cert_and_key):
-    idp_base = "http://idp.example.com"
+    idp_base = "http://idp.example.com/test"
 
     idpconfig = {
         "entityid": "{}/{}/proxy.xml".format(idp_base, "Saml2IDP"),
@@ -136,7 +136,23 @@ def satosa_config_dict(backend_plugin_config, frontend_plugin_config, request_mi
         "BACKEND_MODULES": [backend_plugin_config],
         "FRONTEND_MODULES": [frontend_plugin_config],
         "MICRO_SERVICES": [request_microservice_config, response_microservice_config],
-        "LOGGING": {"version": 1}
+        "LOGGING": {
+            "version": 1,
+            "handlers": {
+                "stdout": {
+                    "level": "DEBUG",
+                    "class": "logging.StreamHandler",
+                    "stream": "ext://sys.stdout",
+                    "formatter": "simple",
+                }
+            },
+            "loggers": {"satosa": {"level": "DEBUG"}},
+            "formatters": {
+                "simple": {
+                    "format": "[%(asctime)s] [%(levelname)s] [%(name)s.%(funcName)s] %(message)s"
+                }
+            },
+        }
     }
     return config
 
