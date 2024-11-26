@@ -16,7 +16,7 @@ from .frontends.base import FrontendModule
 from .micro_services.base import (MicroService, RequestMicroService, ResponseMicroService)
 
 logger = logging.getLogger(__name__)
-
+names = []
 
 @contextmanager
 def prepend_to_import_path(import_paths):
@@ -46,6 +46,14 @@ def load_backends(config, callback, internal_attributes):
         config["BACKEND_MODULES"],
         backend_filter, config["BASE"],
         internal_attributes, callback)
+  
+    for backend in backend_modules:
+        if backend.name in names:
+            raise SATOSAConfigurationError("The name " + backend.name + " is taken!")
+
+        else:
+            names.append(backend.name)
+
     logger.info("Setup backends: {}".format([backend.name for backend in backend_modules]))
     return backend_modules
 
@@ -67,6 +75,13 @@ def load_frontends(config, callback, internal_attributes):
     """
     frontend_modules = _load_plugins(config.get("CUSTOM_PLUGIN_MODULE_PATHS"), config["FRONTEND_MODULES"],
                                      frontend_filter, config["BASE"], internal_attributes, callback)
+    
+    for frontend in frontend_modules:
+        if frontend.name in names:
+            raise SATOSAConfigurationError("The name " + frontend.name + " is taken!")
+        else:
+            names.append(frontend.name)
+    
     logger.info("Setup frontends: {}".format([frontend.name for frontend in frontend_modules]))
     return frontend_modules
 
