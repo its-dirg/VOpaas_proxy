@@ -95,6 +95,9 @@ WSGIScriptAlias / /usr/lib/python3.4/site-packages/satosa/wsgi.py
 WSGICallableObject app
 WSGIImportScript /usr/lib/python3.4/site-packages/satosa/wsgi.py \
   process-group=satosa application-group=satosa
+
+# ensure authorization headers are transmitted to the application
+WSGIPassAuthorization On
 ```
 
 ## SATOSA Configuration
