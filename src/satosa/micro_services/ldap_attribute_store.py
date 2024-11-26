@@ -61,6 +61,7 @@ class LdapAttributeStore(ResponseMicroService):
         "client_strategy": "REUSABLE",
         "pool_size": 10,
         "pool_keepalive": 10,
+        "pool_lifetime": None,
     }
 
     def __init__(self, config, *args, **kwargs):
@@ -307,6 +308,7 @@ class LdapAttributeStore(ResponseMicroService):
 
         pool_size = config["pool_size"]
         pool_keepalive = config["pool_keepalive"]
+        pool_lifetime = config["pool_lifetime"]
         pool_name = ''.join(random.sample(string.ascii_lowercase, 6))
 
         if client_strategy == ldap3.REUSABLE:
@@ -314,6 +316,9 @@ class LdapAttributeStore(ResponseMicroService):
             logger.debug(msg)
             msg = "Using pool keep alive {}".format(pool_keepalive)
             logger.debug(msg)
+            if pool_lifetime:
+                msg = "Using pool lifetime {}".format(pool_lifetime)
+                logger.debug(msg)
 
         try:
             connection = ldap3.Connection(
@@ -327,6 +332,7 @@ class LdapAttributeStore(ResponseMicroService):
                 pool_name=pool_name,
                 pool_size=pool_size,
                 pool_keepalive=pool_keepalive,
+                pool_lifetime=pool_lifetime,
             )
             msg = "Successfully connected to LDAP server"
             logger.debug(msg)
