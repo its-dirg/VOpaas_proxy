@@ -81,9 +81,15 @@ class LdapAttributeStore(ResponseMicroService):
 
         self.config = {}
 
+        # Get provider attribute
+        self.provider_attribute = None
+        if "global" in config:
+            if "provider_attribute" in config["global"]:
+                self.provider_attribute = config["global"]["provider_attribute"]
+
         # Process the default configuration first then any per-SP overrides.
         sp_list = ["default"]
-        sp_list.extend([key for key in config.keys() if key != "default"])
+        sp_list.extend([key for key in config.keys() if key != "default" and key != "global"])
 
         connections = {}
 
@@ -412,6 +418,14 @@ class LdapAttributeStore(ResponseMicroService):
         co_entity_id = state.get(frontend_name, {}).get(co_entity_id_key)
 
         entity_ids = [requester, issuer, co_entity_id, "default"]
+        if self.provider_attribute:
+            try:
+                entity_ids.insert(
+                    0,
+                    data.attributes[self.provider_attribute][0]
+                )
+            except (KeyError, IndexError):
+                pass
 
         config, entity_id = next((self.config.get(e), e)
                                  for e in entity_ids if self.config.get(e))
