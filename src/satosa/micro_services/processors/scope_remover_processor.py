@@ -3,8 +3,8 @@ from .base_processor import BaseProcessor
 
 class ScopeRemoverProcessor(BaseProcessor):
     """
-    Removes the scope from all values of a given attribute 
-    
+    Removes the scope from all values of a given attribute
+
     """
     def process(self, internal_data, attribute, **kwargs):
         attributes = internal_data.attributes

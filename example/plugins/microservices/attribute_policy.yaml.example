@@ -8,5 +8,3 @@ config:
                 - name
                 - givenname
                 - surname
-
-

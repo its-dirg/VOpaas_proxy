@@ -6,5 +6,3 @@
 * [ ] Have you written new tests for your changes?
 * [ ] Does your submission pass tests?
 * [ ] This project follows PEP8 style guide. Have you run your code against the 'flake8' linter?
-
-

@@ -54,4 +54,3 @@ WsgiApplication\n(SATOSABase)->+WsgiApplication\n(SATOSABase): _save_state(Conte
   destroy SATOSA_STATE
 WsgiApplication\n(SATOSABase)-->WsgiApplication\n(SATOSABase):
 WsgiApplication\n(SATOSABase)-->-Gunicorn:
-

@@ -4,7 +4,7 @@ config:
   authz_page: bitbucket/auth/callback
   base_url:  <base_url>
   client_config:
-    client_id: 
+    client_id:
   client_secret:
   scope: ["account", "email"]
   response_type: code
@@ -27,4 +27,3 @@ config:
       - ["Login to a service using your BitBucket credentials", "en"]
       display_name:
       - ["BitBucket", "en"]
-

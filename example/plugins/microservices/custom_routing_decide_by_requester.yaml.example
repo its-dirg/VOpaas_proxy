@@ -4,5 +4,3 @@ config:
   default_backend: Saml2
   requester_mapping:
      'requestor-id': 'backend_custom'
-
-

@@ -23,7 +23,7 @@ be configured with a SAML2 frontend and an OpenID Connect backend.
      for more information.
      To specify the necessary plugins make sure to include the following
      configuration parameter values:
-     ```yaml  
+     ```yaml
      BACKEND_MODULES:
        - saml2-oidc/plugins/openid_backend.yaml
      FRONTEND_MODULES:

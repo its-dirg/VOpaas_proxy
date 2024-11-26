@@ -232,4 +232,3 @@ class TestIdpyOIDCBackend(object):
         assert auth_params["redirect_uri"] == _client.context.claims.get_usage("redirect_uris")[0]
         assert "state" in auth_params
         assert "nonce" in auth_params
-

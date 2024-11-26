@@ -46,5 +46,5 @@ SAMLFrontend\n(Frontendmodule)-->-SAMLFrontend\n(Frontendmodule):
 SAMLFrontend\n(Frontendmodule)-->-WsgiApplication\n(SATOSABase):
 WsgiApplication\n(SATOSABase)-->-WsgiApplication\n(SATOSABase):
 WsgiApplication\n(SATOSABase)->WsgiApplication\n(SATOSABase): _save_state(Context)
-WsgiApplication\n(SATOSABase)-->-WsgiApplication\n(SATOSABase): 
+WsgiApplication\n(SATOSABase)-->-WsgiApplication\n(SATOSABase):
 WsgiApplication\n(SATOSABase)-->-Gunicorn:

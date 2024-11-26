@@ -187,12 +187,3 @@ ErrorDocument 500 /error.html
 
 Alias /error.html /var/www/html/error.html
 ```
-
-
-
-
-
-
-
-
-

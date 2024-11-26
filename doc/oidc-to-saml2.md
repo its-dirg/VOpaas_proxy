@@ -23,7 +23,7 @@ be configured with a OpenID Connect frontend and a SAML2 backend.
      for more information.
      To specify the necessary plugins make sure to include the following
      configuration parameter values:
-     ```yaml  
+     ```yaml
      BACKEND_MODULES:
        - "oidc-saml2/plugins/saml2_backend.yaml"
      FRONTEND_MODULES:
@@ -53,7 +53,7 @@ be configured with a OpenID Connect frontend and a SAML2 backend.
 
 1. Generate the SAML metadata, see the [SAML metadata](README.md#saml_metadata) section of the
    proxy configuration instructions for more information. Note: SAML metadata can only be generated
-   for the backend, so make sure to specify the option `-b`. 
+   for the backend, so make sure to specify the option `-b`.
 
 1. Start the proxy application, see the [Running the proxy application](README.md#run) section of
    the proxy configuration instructions for more information.

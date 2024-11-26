@@ -4,8 +4,8 @@
 ![](images/one-to-many_proxy_uscase.png "one-to-many proxy overview image")
 
 1. The service provider sends a request to the proxy instance. The service provider only knows about the proxy and none of the actual identity providers.
-1. The proxy redirects the user to the discovery service 
-1. The entity ID of the identity provider selected by the user is returned to the proxy 
+1. The proxy redirects the user to the discovery service
+1. The entity ID of the identity provider selected by the user is returned to the proxy
 1. The proxy sent authentication request and when completed the the user get redirected back to the proxy
 1. The response returned from the Identity provider is returned to the Service provider
 
@@ -13,7 +13,7 @@
 ![](images/many-to-one.png "many-to-one proxy overview image")
 
 1. Service provider sends request to proxy
-1. Proxy communicates with the identity provider which normally can't talk to the service provider. 
+1. Proxy communicates with the identity provider which normally can't talk to the service provider.
 A reason for this could be that it can't handle multiple entity ID's or that they are not really
 compatible.
 1. Response returned by the identity provider containing the user information.
@@ -33,7 +33,7 @@ be configured with a SAML2 frontend and an SAML2 backend.
    cp example/plugins/frontends/saml2_frontend.yaml.example saml2-saml2/plugins/
    cp example/plugins/backends/saml2_backend.yaml.example saml2-saml2/plugins/
    ```
-   
+
 1. Configure the proxy:
   1. Rename `proxy_conf.yaml.example` to `proxy_conf.yaml`:
      ```bash
@@ -45,7 +45,7 @@ be configured with a SAML2 frontend and an SAML2 backend.
      for more information.
      To specify the necessary plugins make sure to include the following
      configuration parameter values:
-     ```yaml  
+     ```yaml
      BACKEND_MODULES:
        - saml2-saml2/plugins/saml2_backend.yaml
      FRONTEND_MODULES:

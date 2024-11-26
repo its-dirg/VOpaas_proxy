@@ -22,7 +22,7 @@ If the consent is enabled, the consent module will save the following:
 * **CONSENT.internal_resp.auth_info.timestamp**: When the authentication was done
 * **CONSENT.internal_resp.auth_info.auth_class_ref**: Description of how the authentication was determined
 * **CONSENT.internal_resp.issuer**: Id of the identity provider
-* **CONSENT.internal_resp.hash_type**: Which id type the requester is asking for (persistent/transient/...)  
+* **CONSENT.internal_resp.hash_type**: Which id type the requester is asking for (persistent/transient/...)
 * **CONSENT.internal_resp.usr_id**: The id of the authenticated user
 * **CONSENT.internal_resp.attr**: Contains all attributes and values given by the authentication
 * **CONSENT.internal_resp.usr_id_attr**: An empty list

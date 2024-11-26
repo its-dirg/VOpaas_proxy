@@ -8,7 +8,7 @@ CONFIG_KEY_REPLACE_PATTERN = 'regex_sub_replace_pattern'
 logger = logging.getLogger(__name__)
 class RegexSubProcessor(BaseProcessor):
     """
-    Performs a regex sub against an attribute value. 
+    Performs a regex sub against an attribute value.
     Example configuration:
     module: satosa.micro_services.attribute_processor.AttributeProcessor
     name: AttributeProcessor
@@ -19,20 +19,20 @@ class RegexSubProcessor(BaseProcessor):
         - name: RegexSubProcessor
           module: satosa.micro_services.custom.processors.regex_sub_processor
           regex_sub_match_pattern: (?<=saml-provider\/)(.*)(?=,)
-          regex_sub_replace_pattern: \1-Test  
+          regex_sub_replace_pattern: \1-Test
 
     """
-    
+
     def process(self, internal_data, attribute, **kwargs):
         regex_sub_match_pattern = r'{}'.format(kwargs.get(CONFIG_KEY_MATCH_PATTERN, ''))
         if regex_sub_match_pattern  == '':
             raise AttributeProcessorError("The regex_sub_match_pattern needs to be set")
-            
+
         regex_sub_replace_pattern = r'{}'.format(kwargs.get(CONFIG_KEY_REPLACE_PATTERN, ''))
         if regex_sub_replace_pattern  == '':
             raise AttributeProcessorError("The regex_sub_replace_pattern needs to be set")
         attributes = internal_data.attributes
-        
+
         values = attributes.get(attribute, [])
         new_values = []
         if not values:

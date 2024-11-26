@@ -19,6 +19,5 @@ config:
     processors:
     - name: RegexSubProcessor
       module: satosa.micro_services.processors.regex_sub_processor
-      regex_sub_match_pattern: !ENV REGEX_MATCH_PATTERN 
-      regex_sub_replace_pattern: !ENV REGEX_REPLACE_PATTERN      
-      
+      regex_sub_match_pattern: !ENV REGEX_MATCH_PATTERN
+      regex_sub_replace_pattern: !ENV REGEX_REPLACE_PATTERN

@@ -1,0 +1,43 @@
+---
+name: Continuous Integration
+
+# Trigger this workflow manually, by pushing commits to any branch, or
+# by filing a pull request.
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - id: cache-workdir
+        uses: actions/cache@v3
+        with:
+          key: workdir-${{ github.sha }}
+          path: .
+      - if: steps.cache-workdir.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: setup.*
+      - run: python -m pip install .
+
+  lint:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache/restore@v3
+        with:
+          key: workdir-${{ github.sha }}
+          path: .
+      - uses: pre-commit/action@v3.0.0
