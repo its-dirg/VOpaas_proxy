@@ -2,11 +2,13 @@ import json
 import re
 
 import responses
+from urllib.parse import urlparse
 from werkzeug.test import Client
 from werkzeug.wrappers import Response
 
 from satosa.proxy_server import make_app
 from satosa.satosa_config import SATOSAConfig
+from satosa.util import join_paths
 
 
 class TestConsent:
@@ -16,6 +18,7 @@ class TestConsent:
         consent_module_config["config"]["api_url"] = api_url
         consent_module_config["config"]["redirect_url"] = redirect_url
         satosa_config_dict["MICRO_SERVICES"].append(consent_module_config)
+        base_path = urlparse(satosa_config_dict["BASE"]).path.lstrip("\n/")
 
         # application
         test_client = Client(make_app(SATOSAConfig(satosa_config_dict)), Response)
@@ -43,5 +46,5 @@ class TestConsent:
             rsps.add(responses.GET, verify_url_re, json.dumps({"foo": "bar"}), status=200)
 
             # incoming consent response
-            http_resp = test_client.get("/consent/handle_consent")
+            http_resp = test_client.get(join_paths("/", base_path, "consent/handle_consent"))
             assert http_resp.status_code == 200

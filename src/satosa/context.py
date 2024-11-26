@@ -70,10 +70,6 @@ class Context(object):
             raise ValueError("path can't start with '/'")
         self._path = p
 
-    def target_entity_id_from_path(self):
-        target_entity_id = self.path.split("/")[1]
-        return target_entity_id
-
     def decorate(self, key, value):
         """
         Add information to the context

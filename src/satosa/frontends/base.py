@@ -2,6 +2,9 @@
 Holds a base class for frontend modules used in the SATOSA proxy.
 """
 from ..attribute_mapping import AttributeMapper
+from ..util import join_paths
+
+from urllib.parse import urlparse
 
 
 class FrontendModule(object):
@@ -14,17 +17,23 @@ class FrontendModule(object):
         :type auth_req_callback_func:
         (satosa.context.Context, satosa.internal.InternalData) -> satosa.response.Response
         :type internal_attributes: dict[str, dict[str, str | list[str]]]
+        :type base_url: str
         :type name: str
 
         :param auth_req_callback_func: Callback should be called by the module after the
         authorization response has been processed.
+        :param internal_attributes: attribute mapping
+        :param base_url: base url of the proxy
         :param name: name of the plugin
         """
         self.auth_req_callback_func = auth_req_callback_func
         self.internal_attributes = internal_attributes
         self.converter = AttributeMapper(internal_attributes)
-        self.base_url = base_url
+        self.base_url = base_url or ""
+        self.base_path = urlparse(self.base_url).path.lstrip("/")
         self.name = name
+        self.endpoint_baseurl = join_paths(self.base_url, self.name)
+        self.endpoint_basepath = urlparse(self.endpoint_baseurl).path.lstrip("/")
 
     def handle_authn_response(self, context, internal_resp):
         """

@@ -6,6 +6,7 @@ import logging
 import uuid
 
 from saml2.s_utils import UnknownSystemEntity
+from urllib.parse import urlparse
 
 from satosa import util
 from satosa.response import BadRequest
@@ -52,6 +53,8 @@ class SATOSABase(object):
         """
         self.config = config
 
+        base_path = urlparse(self.config["BASE"]).path.lstrip("/")
+
         logger.info("Loading backend modules...")
         backends = load_backends(self.config, self._auth_resp_callback_func,
                                  self.config["INTERNAL_ATTRIBUTES"])
@@ -77,8 +80,10 @@ class SATOSABase(object):
                                             self.config["BASE"]))
             self._link_micro_services(self.response_micro_services, self._auth_resp_finish)
 
-        self.module_router = ModuleRouter(frontends, backends,
-                                          self.request_micro_services + self.response_micro_services)
+        self.module_router = ModuleRouter(frontends,
+                                          backends,
+                                          self.request_micro_services + self.response_micro_services,
+                                          base_path)
 
     def _link_micro_services(self, micro_services, finisher):
         if not micro_services:

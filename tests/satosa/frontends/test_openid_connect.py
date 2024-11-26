@@ -28,7 +28,7 @@ from tests.users import OIDC_USERS
 INTERNAL_ATTRIBUTES = {
     "attributes": {"mail": {"saml": ["email"], "openid": ["email"]}}
 }
-BASE_URL = "https://op.example.com"
+BASE_URL = "https://op.example.com/satosa"
 CLIENT_ID = "client1"
 CLIENT_SECRET = "client_secret"
 EXTRA_CLAIMS = {
@@ -44,6 +44,7 @@ EXTRA_CLAIMS = {
 EXTRA_SCOPES = {
     "eduperson": ["eduperson_scoped_affiliation", "eduperson_principal_name"]
 }
+ISSUER = "https://other-op.example.com/satosa/other-op"
 
 class TestOpenIDConnectFrontend(object):
     @pytest.fixture
@@ -86,10 +87,10 @@ class TestOpenIDConnectFrontend(object):
 
         return config
 
-    def create_frontend(self, frontend_config):
+    def create_frontend(self, frontend_config, issuer=BASE_URL):
         # will use in-memory storage
         instance = OpenIDConnectFrontend(lambda ctx, req: None, INTERNAL_ATTRIBUTES,
-                                         frontend_config, BASE_URL, "oidc_frontend")
+                                         frontend_config, issuer, "oidc_frontend")
         instance.register_endpoints(["foo_backend"])
         return instance
 
@@ -369,10 +370,40 @@ class TestOpenIDConnectFrontend(object):
         jwks = json.loads(http_response.message)
         assert jwks == {"keys": [frontend.signing_key.serialize()]}
 
-    def test_register_endpoints_token_and_userinfo_endpoint_is_published_if_necessary(self, frontend):
+    @pytest.mark.parametrize("issuer", [
+        "https://example.com",
+        "https://example.com/some/op",
+        "https://example.com/"
+    ])
+    def test_register_endpoints_handles_path_in_issuer(self, frontend_config, issuer):
+        frontend = self.create_frontend(frontend_config, issuer)
+        issuer_path = urlparse(issuer).path[1:]
+        if issuer_path:
+            issuer_path += "/"
         urls = frontend.register_endpoints(["test"])
-        assert ("^{}/{}".format(frontend.name, TokenEndpoint.url), frontend.token_endpoint) in urls
-        assert ("^{}/{}".format(frontend.name, UserinfoEndpoint.url), frontend.userinfo_endpoint) in urls
+        assert (
+            "^{}{}$".format(issuer_path, ".well-known/openid-configuration"),
+            frontend.provider_config,
+        ) in urls
+
+        assert (
+            "^{}/{}".format(frontend.endpoint_basepath, TokenEndpoint.url),
+            frontend.token_endpoint,
+        ) in urls
+        assert (
+            "^{}/{}".format(frontend.endpoint_basepath, UserinfoEndpoint.url),
+            frontend.userinfo_endpoint,
+        ) in urls
+
+    def test_discovery_endpoint_honours_issuer_override(self, frontend_config):
+        frontend_config["provider"]["issuer"] = ISSUER
+        frontend = self.create_frontend(frontend_config)
+        discovery_path = urlparse(ISSUER).path[1:]
+        urls = frontend.register_endpoints(["test"])
+        assert (
+            "^{}/{}$".format(discovery_path, ".well-known/openid-configuration"),
+            frontend.provider_config,
+        ) in urls
 
     def test_register_endpoints_token_and_userinfo_endpoint_is_not_published_if_only_implicit_flow(
             self, frontend_config, context):
@@ -380,8 +411,14 @@ class TestOpenIDConnectFrontend(object):
         frontend = self.create_frontend(frontend_config)
 
         urls = frontend.register_endpoints(["test"])
-        assert ("^{}/{}".format("test", TokenEndpoint.url), frontend.token_endpoint) not in urls
-        assert ("^{}/{}".format("test", UserinfoEndpoint.url), frontend.userinfo_endpoint) not in urls
+        assert (
+            "^{}/{}".format(frontend.endpoint_basepath, TokenEndpoint.url),
+            frontend.token_endpoint,
+        ) not in urls
+        assert (
+            "^{}/{}".format(frontend.endpoint_basepath, UserinfoEndpoint.url),
+            frontend.userinfo_endpoint,
+        ) not in urls
 
         http_response = frontend.provider_config(context)
         provider_config = ProviderConfigurationResponse().deserialize(http_response.message, "json")
@@ -397,8 +434,13 @@ class TestOpenIDConnectFrontend(object):
         frontend = self.create_frontend(frontend_config)
 
         urls = frontend.register_endpoints(["test"])
-        assert (("^{}/{}".format(frontend.name, RegistrationEndpoint.url),
-                 frontend.client_registration) in urls) == client_registration_enabled
+        assert (
+            (
+                "^{}/{}".format(frontend.endpoint_basepath, RegistrationEndpoint.url),
+                frontend.client_registration,
+            )
+            in urls
+        ) == client_registration_enabled
         provider_info = ProviderConfigurationResponse().deserialize(frontend.provider_config(None).message, "json")
         assert ("registration_endpoint" in provider_info) == client_registration_enabled
 

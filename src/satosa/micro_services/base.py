@@ -2,6 +2,9 @@
 Micro service for SATOSA
 """
 import logging
+from urllib.parse import urlparse
+
+from ..util import join_paths
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +17,9 @@ class MicroService(object):
     def __init__(self, name, base_url, **kwargs):
         self.name = name
         self.base_url = base_url
+        self.base_path = urlparse(base_url).path.lstrip("/")
+        self.endpoint_baseurl = join_paths(self.base_url, self.name)
+        self.endpoint_basepath = urlparse(self.endpoint_baseurl).path.lstrip("/")
         self.next = None
 
     def process(self, context, data):
