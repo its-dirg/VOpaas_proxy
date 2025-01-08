@@ -46,6 +46,7 @@ class LdapAttributeStore(ResponseMicroService):
         "clear_input_attributes": False,
         "ignore": False,
         "ldap_identifier_attribute": None,
+        "search_filter": None,
         "ldap_url": None,
         "ldap_to_internal_map": None,
         "on_ldap_search_result_empty": None,
@@ -473,8 +474,11 @@ class LdapAttributeStore(ResponseMicroService):
         logger.debug(logline)
 
         for filter_val in filter_values:
-            ldap_ident_attr = config["ldap_identifier_attribute"]
-            search_filter = "({0}={1})".format(ldap_ident_attr, filter_val)
+            if config["search_filter"]:
+                search_filter = config["search_filter"].format(filter_val)
+            else:
+                ldap_ident_attr = config["ldap_identifier_attribute"]
+                search_filter = "({0}={1})".format(ldap_ident_attr, filter_val)
             msg = {
                 "message": "LDAP query with constructed search filter",
                 "search filter": search_filter,

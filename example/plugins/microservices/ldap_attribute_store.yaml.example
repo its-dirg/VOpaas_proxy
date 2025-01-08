@@ -84,6 +84,13 @@ config:
 
       ldap_identifier_attribute: uid
 
+      # Override the contructed search_filter with ldap_identifier_attribute
+      # with an own filter. This allows more complex queries.
+      # {0} will be injected with the ordered_identifier_candidates.
+      # For example:
+      # search_filter: "(&(uid={0})(isMemberOf=authorized))"
+      search_filter: None
+
       # Whether to clear values for attributes incoming
       # to this microservice. Default is no or false.
       clear_input_attributes: no
