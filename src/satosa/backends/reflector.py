@@ -21,6 +21,7 @@ class ReflectorBackend(BackendModule):
         """
         :type outgoing:
         (satosa.context.Context, satosa.internal.InternalData) -> satosa.response.Response
+
         :type internal_attributes: dict[str, dict[str, list[str] | str]]
         :type config: dict[str, Any]
         :type base_url: str

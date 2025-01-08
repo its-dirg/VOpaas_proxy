@@ -33,6 +33,7 @@ from .base import FrontendModule
 from ..response import Response
 from ..response import ServiceError
 from ..saml_util import make_saml_response
+from ..saml_util import propagate_logout
 from satosa.exception import SATOSAError
 from satosa.exception import SATOSABadRequestError
 from satosa.exception import SATOSAMissingStateError
@@ -67,10 +68,10 @@ class SAMLFrontend(FrontendModule, SAMLBaseModule):
     KEY_ENDPOINTS = 'endpoints'
     KEY_IDP_CONFIG = 'idp_config'
 
-    def __init__(self, auth_req_callback_func, internal_attributes, config, base_url, name):
+    def __init__(self, auth_req_callback_func, internal_attributes, config, base_url, name, logout_req_callback_func=None):
         self._validate_config(config)
 
-        super().__init__(auth_req_callback_func, internal_attributes, base_url, name)
+        super().__init__(auth_req_callback_func, internal_attributes, base_url, name, logout_req_callback_func)
         self.config = self.init_config(config)
 
         self.endpoints = config[self.KEY_ENDPOINTS]
@@ -101,6 +102,46 @@ class SAMLFrontend(FrontendModule, SAMLBaseModule):
         """
         return self._handle_authn_request(context, binding_in, self.idp)
 
+    def handle_logout_message(self, context, binding_in):
+        """
+        This method is bound to the starting endpoint of the logout.
+
+        :type context: satosa.context.Context
+        :type binding_in: str
+        :rtype:
+
+        :param context: The current context
+        :param binding_in: The binding type
+        :return:
+        """
+        if "SAMLRequest" in context.request:
+            return self.handle_logout_request(context, binding_in)
+        elif "SAMLResponse" in context.request:
+            return self.handle_logout_response(context)
+        else:
+            return NotImplementedError()
+
+    def handle_logout_request(self, context, binding_in):
+        """
+        This method is bound to the starting endpoint of the logout.
+
+        :type context: satosa.context.Context
+        :type binding_in: str
+
+        :param contxt: The current context
+        :param binding_in: The binding type (http post, http redirect, ..)
+        :return: response
+        """
+        return self._handle_logout_request(context, binding_in, self.idp)
+
+    def handle_logout_response(self, context):
+        """
+        See super class method satosa.frontends.base.FrontendModule#handle_logout_response
+        :type context: satosa.context.Context
+        :type binding_in: str
+        """
+        return self._handle_logout_response(context)
+
     def handle_backend_error(self, exception):
         """
         See super class satosa.frontends.base.FrontendModule
@@ -126,6 +167,7 @@ class SAMLFrontend(FrontendModule, SAMLBaseModule):
         # Create the idp
         idp_config = IdPConfig().load(copy.deepcopy(self.idp_config))
         self.idp = Server(config=idp_config)
+        self.sp_sessions = {}
         return self._register_endpoints(backend_names) + url_map
 
     def _create_state_data(self, context, resp_args, relay_state):
@@ -286,6 +328,115 @@ class SAMLFrontend(FrontendModule, SAMLBaseModule):
         context.decorate(Context.KEY_METADATA_STORE, self.idp.metadata)
         return self.auth_req_callback_func(context, internal_req)
 
+    def _handle_logout_request(self, context, binding_in, idp):
+        """
+        :type context: satosa.context.Context
+        :type binding_in: str
+        :type idp: saml.server.Server
+        :rtype: satosa.response.Response
+
+        :param context: The current context
+        :param binding_in: The pysaml binding type
+        :param idp: The saml frontend idp server
+        :return: response
+        """
+        req_info = idp.parse_logout_request(context.request["SAMLRequest"], binding_in)
+        logout_req = req_info.message
+        msg = "{}".format(logout_req)
+        logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+        logger.debug(logline)
+
+        resp_args = {}
+        resp_args['name_id'] = logout_req.name_id.text if logout_req.name_id.text else None
+        resp_args['session_indexes'] = []
+        for session_index in logout_req.session_index:
+            resp_args['session_indexes'].append(session_index.text)
+        requester = logout_req.issuer.text
+        requester_name = self._get_sp_display_name(idp, requester)
+
+        context.state[self.name] = self._create_state_data(context, resp_args,
+                                                        context.request.get("RelayState"))
+
+        name_id_value = logout_req.name_id.text
+        name_id_format = logout_req.name_id.format
+
+        sign = self.idp_config.get("service", {}).get("idp", {}).get("logout_requests_signed", True)
+        internal_req = InternalData(
+            subject_id=name_id_value,
+            subject_type=name_id_format,
+            requester=requester,
+        )
+
+        sp_sessions = self._sp_session_info(context)
+        if sp_sessions:
+            for sp_info in sp_sessions:
+                for authn_statement in sp_info[1]:
+                    if authn_statement[0].session_index == resp_args["session_indexes"][0]:
+                        continue
+                    else:
+                        try:
+                            binding, slo_destination = self.idp.pick_binding(
+                                "single_logout_service", None, "spsso", entity_id=sp_info[0][0]
+                            )
+
+                            lreq_id, lreq = self.idp.create_logout_request(
+                                destination=slo_destination,
+                                issuer_entity_id=sp_info[0][0],
+                                name_id=NameID(text=sp_info[0][1].text),
+                                session_indexes=[authn_statement[0].session_index],
+                                sign=sign
+                            )
+
+                            http_args = self.idp.apply_binding(binding, "%s" % lreq, slo_destination)
+                            msg = "http_args: {}".format(http_args)
+                            logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+                            propagate_logout(binding, http_args)
+                        except:
+                            msg = {
+                                "message": "LogoutRequest Failed",
+                                "error": "Failed to construct the LogoutRequest for SP - {}".format(sp_info[0][0])
+                            }
+                            logline = lu.LOG_FMT(id=lu.get_session_id(context.state), message=msg)
+
+        # Return logout response to the SP that initiated logout if the logout request doesn't contain
+        # the <aslo:Asynchronous> element within the <samlp:Extensions> element
+        extensions = logout_req.extensions if logout_req.extensions else None
+        if extensions is not None:
+            _extensions = []
+            for ext in extensions.extension_elements:
+                _extensions.append(ext.namespace)
+
+            if "urn:oasis:names:tc:SAML:2.0:protocol:ext:async-slo" not in _extensions:
+                binding, destination = self.idp.pick_binding(
+                    "single_logout_service", None, "spsso", entity_id=logout_req.issuer.text
+                )
+                logout_resp = self.idp.create_logout_response(logout_req, [binding])
+                http_args = self.idp.apply_binding(binding, "%s" % logout_resp, destination)
+                msg = "http_args: {}".format(http_args)
+                logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+                propagate_logout(binding, http_args)
+
+        return self.logout_req_callback_func(context, internal_req)
+
+    def _sp_session_info(self, context):
+        """
+        :type context: satosa.context.Context
+        :rtype: list[((str, saml2.saml.NameID), [[saml2.saml.AuthnStatement]])]
+
+        :param context: The current context
+        :return: list of service provider session information
+        """
+        sp_sessions = []
+
+        session_id = context.state["SESSION_ID"]
+        if session_id in self.sp_sessions:
+            for sp in self.sp_sessions[session_id]:
+                sp_sessions.append(
+                    (sp, self.idp.session_db.get_authn_statements(sp[1])))
+        else:
+            pass
+        return sp_sessions
+
     def _get_approved_attributes(self, idp, idp_policy, sp_entity_id, state):
         """
         Returns a list of approved attributes
@@ -389,6 +540,12 @@ class SAMLFrontend(FrontendModule, SAMLBaseModule):
             name_qualifier=None,
         )
 
+        session_id = context.state["SESSION_ID"]
+        if session_id not in self.sp_sessions.keys():
+            self.sp_sessions[session_id] = []
+
+        self.sp_sessions[session_id].append((sp_entity_id, name_id))
+
         msg = "returning attributes {}".format(json.dumps(ava))
         logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
         logger.debug(logline)
@@ -488,6 +645,23 @@ class SAMLFrontend(FrontendModule, SAMLBaseModule):
 
         return make_saml_response(resp_args["binding"], http_args)
 
+    def _handle_logout_response(self, context):
+        """
+        See super class method satosa.frontends.base.FrontendModule#handle_logout_response
+        :type context: satosa.context.Context
+        :type internal_response: satosa.internal.InternalData
+        :rtype satosa.response.LogoutResponse
+
+        :param context: the current context
+        :param internal_response: the internal logout response
+        :param idp: the saml frontend idp
+        """
+        msg = "Logout Complete"
+        logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+        logger.debug(logline, exc_info=True)
+        status = "200 OK"
+        return Response(message=msg, status=status)
+
     def _handle_backend_error(self, exception, idp):
         """
         See super class satosa.frontends.base.FrontendModule
@@ -560,8 +734,14 @@ class SAMLFrontend(FrontendModule, SAMLBaseModule):
                     valid_providers = "{}|^{}".format(valid_providers, provider)
                 valid_providers = valid_providers.lstrip("|")
                 parsed_endp = urlparse(endp)
-                url_map.append(("(%s)/%s$" % (valid_providers, parsed_endp.path),
-                                functools.partial(self.handle_authn_request, binding_in=binding)))
+                if endp_category == "single_sign_on_service":
+                    url_map.append(("(%s)/%s$" % (valid_providers, parsed_endp.path),
+                                    functools.partial(self.handle_authn_request, binding_in=binding)))
+                elif endp_category == "single_logout_service":
+                    url_map.append(("(%s)/%s$" % (valid_providers, parsed_endp.path),
+                                    functools.partial(self.handle_logout_message, binding_in=binding)))
+                else:
+                    raise NotImplementedError()
 
         if self.expose_entityid_endpoint():
             logger.debug("Exposing frontend entity endpoint = {}".format(self.idp.config.entityid))

@@ -57,8 +57,9 @@ class OpenIDConnectFrontend(FrontendModule):
     """
 
     def __init__(self, auth_req_callback_func, internal_attributes, conf, base_url, name):
-        _validate_config(conf)
+        self._validate_config(conf)
         super().__init__(auth_req_callback_func, internal_attributes, base_url, name)
+
 
         self.config = conf
         provider_config = self.config["provider"]

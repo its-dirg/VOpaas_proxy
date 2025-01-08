@@ -111,6 +111,30 @@ class AuthenticationInformation(_Datafy):
         self.authority = authority
 
 
+class LogoutInformation(_Datafy):
+    """
+    Class that holds information about the logout
+    """
+
+    def __init__(
+        self,
+        timestamp=None,
+        issuer=None,
+        status=None,
+        *args,
+        **kwargs,
+    ):
+        """
+        :param timestamp: time when the logout was done
+        :param issuer: where the logout was done
+        :param status: status of the logout
+        """
+        super().__init__(self, *args, **kwargs)
+        self.timestamp = timestamp
+        self.issuer = issuer
+        self.status = status
+
+
 class InternalData(_Datafy):
     """
     A base class for the data carriers between frontends/backends

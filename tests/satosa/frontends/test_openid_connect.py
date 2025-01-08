@@ -88,7 +88,8 @@ class TestOpenIDConnectFrontend(object):
 
     def create_frontend(self, frontend_config):
         # will use in-memory storage
-        instance = OpenIDConnectFrontend(lambda ctx, req: None, INTERNAL_ATTRIBUTES,
+        instance = OpenIDConnectFrontend(lambda ctx, req: None,
+                                         INTERNAL_ATTRIBUTES,
                                          frontend_config, BASE_URL, "oidc_frontend")
         instance.register_endpoints(["foo_backend"])
         return instance

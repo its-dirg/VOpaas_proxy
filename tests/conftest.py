@@ -47,7 +47,10 @@ def sp_conf(cert_and_key):
                     "assertion_consumer_service": [
                         ("%s/acs/redirect" % sp_base, BINDING_HTTP_REDIRECT)
                     ],
-                    "discovery_response": [("%s/disco" % sp_base, BINDING_DISCO)]
+                    "discovery_response": [("%s/disco" % sp_base, BINDING_DISCO)],
+                    "single_logout_service": [
+                        ("%s/sp/slo/redirect" % sp_base, BINDING_HTTP_REDIRECT),
+                        ("%s/sp/slo/post" % sp_base, BINDING_HTTP_POST)]
                 },
                 "want_response_signed": False,
                 "allow_unsolicited": True,
@@ -76,6 +79,10 @@ def idp_conf(cert_and_key):
                     "single_sign_on_service": [
                         ("%s/sso/redirect" % idp_base, BINDING_HTTP_REDIRECT),
                     ],
+                    "single_logout_service": [
+                        ("%s/slo/redirect" % idp_base, BINDING_HTTP_REDIRECT),
+                        ("%s/slo/post" % idp_base, BINDING_HTTP_POST)
+                    ]
                 },
                 "policy": {
                     "default": {
@@ -95,6 +102,7 @@ def idp_conf(cert_and_key):
                     "logo": [{"text": "https://idp.example.com/static/logo.png", "width": "120", "height": "60",
                               "lang": "en"}],
                 },
+                "session_storage": "memory"
             },
         },
         "cert_file": cert_and_key[0],
@@ -135,6 +143,7 @@ def satosa_config_dict(backend_plugin_config, frontend_plugin_config, request_mi
         "CUSTOM_PLUGIN_MODULE_PATHS": [os.path.dirname(__file__)],
         "BACKEND_MODULES": [backend_plugin_config],
         "FRONTEND_MODULES": [frontend_plugin_config],
+        "DATABASE": {"name": "memory"},
         "MICRO_SERVICES": [request_microservice_config, response_microservice_config],
         "LOGGING": {"version": 1}
     }
@@ -191,7 +200,8 @@ def saml_frontend_config(cert_and_key, sp_conf):
                 "service": {
                     "idp": {
                         "endpoints": {
-                            "single_sign_on_service": []
+                            "single_sign_on_service": [],
+                            "single_logout_service": []
                         },
                         "name": "Frontend IdP",
                         "name_id_format": NAMEID_FORMAT_TRANSIENT,
@@ -225,7 +235,9 @@ def saml_frontend_config(cert_and_key, sp_conf):
 
             "endpoints": {
                 "single_sign_on_service": {BINDING_HTTP_POST: "sso/post",
-                                           BINDING_HTTP_REDIRECT: "sso/redirect"}
+                                           BINDING_HTTP_REDIRECT: "sso/redirect"},
+                "single_logout_service": {BINDING_HTTP_REDIRECT: "slo/redirect",
+                                          BINDING_HTTP_POST: "slo/post"}
             }
         }
     }
@@ -256,8 +268,11 @@ def saml_backend_config(idp_conf):
                         "endpoints": {
                             "assertion_consumer_service": [
                                 ("{}/{}/acs/redirect".format(BASE_URL, name), BINDING_HTTP_REDIRECT)],
-                            "discovery_response": [("{}/disco", BINDING_DISCO)]
-
+                            "discovery_response": [("{}/disco", BINDING_DISCO)],
+                            "single_logout_service": [
+                                ("{}/{}/sp/slo/redirect".format(BASE_URL, name), BINDING_HTTP_REDIRECT),
+                                ("{}/{}/sp/slo/post".format(BASE_URL, name), BINDING_HTTP_POST)
+                            ]
                         }
                     }
                 },

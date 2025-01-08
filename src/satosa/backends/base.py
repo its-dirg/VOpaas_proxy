@@ -10,13 +10,14 @@ class BackendModule(object):
     Base class for a backend module.
     """
 
-    def __init__(self, auth_callback_func, internal_attributes, base_url, name):
+    def __init__(self, auth_callback_func, internal_attributes, base_url, name, logout_callback_func=None):
         """
         :type auth_callback_func:
         (satosa.context.Context, satosa.internal.InternalData) -> satosa.response.Response
         :type internal_attributes: dict[string, dict[str, str | list[str]]]
         :type base_url: str
         :type name: str
+        :type logout_callback_func:
 
         :param auth_callback_func: Callback should be called by the module after
                                    the authorization in the backend is done.
@@ -25,8 +26,11 @@ class BackendModule(object):
         RP's expects namevice.
         :param base_url: base url of the service
         :param name: name of the plugin
+        :param logout_callback_func: Callback should be called by the module after
+                                     the logout in the backend is complete
         """
         self.auth_callback_func = auth_callback_func
+        self.logout_callback_func = logout_callback_func
         self.internal_attributes = internal_attributes
         self.converter = AttributeMapper(internal_attributes)
         self.base_url = base_url
@@ -43,6 +47,20 @@ class BackendModule(object):
         :param context: the request context
         :param internal_request: Information about the authorization request
         :return: response
+        """
+        raise NotImplementedError()
+
+    def start_logout(self, context, internal_request):
+        """
+        This is the start up function of the backend logout.
+
+        :type context: satosa.context.Context
+        :type internal_request: satosa.internal.InternalData
+        :rtype
+
+        :param context: the request context
+        :param internal_request: Information about the logout request
+        :return:
         """
         raise NotImplementedError()
 
