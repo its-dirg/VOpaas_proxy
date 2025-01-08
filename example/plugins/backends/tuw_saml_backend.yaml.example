@@ -1,0 +1,184 @@
+#
+# based on the example SAML backend configuration:
+# https://github.com/IdentityPython/SATOSA/blob/master/example/plugins/backends/saml2_backend.yaml.example
+#
+# more information:
+# https://wiki.oasis-open.org/security/FrontPage
+# https://github.com/IdentityPython/pysaml2
+# https://pysaml2.readthedocs.io/en/latest/howto/config.html
+#
+module: "satosa.backends.saml2.SAMLBackend"
+name: "saml"
+config:
+  idp_blacklist_file: "blacklist.json"
+
+  # ACR: authentication class context reference
+  # LOA: level of authentication
+  #
+  # we choose PW + TLS as minimum, c.f. https://docs.oasis-open.org/security/saml/v2.0/saml-authn-context-2.0-os.pdf
+  acr_mapping:
+    default:
+      class_ref: "urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport"
+      comparison: "minimum"
+
+  # IDP discovery services generate lists of available IDPs and let the users select which one they want to authenticate with
+  # setting a discovery service is required if there's more than one IDP configured (e.g. through federation metadata)
+  disco_srv: !ENV SATOSA_SAML_DISCOVERY_SERVICE
+
+  # as mentioned below, the requirement for a stable entity ID is stronger than
+  # for it to resolve to an actually usable endpoint providing the XML metadata
+  entityid_endpoint: false
+
+  mirror_force_authn: false
+  memorize_idp: false
+  use_memorized_idp_when_force_authn: false
+  send_requester_id: false
+  enable_metadata_reload: false
+  acs_selection_strategy: "prefer_matching_host"
+
+  sp_config:
+    name: "TU Wien Research Data"
+    description: "The institutional research data repository of TU Wien"
+    key_file: !ENV SATOSA_SAML_KEY_FILE
+    cert_file: !ENV SATOSA_SAML_CERT_FILE
+    organization:
+      display_name: "TU Wien"
+      name: "TU Wien"
+      url: "https://www.tuwien.at/"
+    contact_person:
+      - contact_type: "technical"
+        email_address: "mailto:tudata@tuwien.ac.at"
+        given_name: "Technical Support"
+      - contact_type: "other"
+        email_address: "mailto:tudata@tuwien.ac.at"
+        given_name: "Security Contact"
+        extension_attributes:
+          "xmlns:remd": "http://refeds.org/metadata"
+          "remd:contactType": "http://refeds.org/metadata/contactType/security"
+
+    # we don't go around collecting the SAML metadata from every IDP individually, but rather get them
+    # from the centrally managed ACOnet endpoint (and we refresh it every 12h with that cryptic string)
+    metadata:
+      remote:
+        - url: !ENV SATOSA_SAML_METADATA_URL
+          cert: !ENV SATOSA_SAML_METADATA_CERT_FILE
+          check_validity: true
+          disable_ssl_certificate_validation: false
+          freshness_period: "PT12H"
+
+    # the entity ID for the service provider, should remain stable!
+    # it doesn't have to be backed by an actual endpoint though
+    entityid: "https://researchdata.tuwien.ac.at/saml"
+    accepted_time_diff: 60
+
+    # we provide information about the entity categories that we want to be part of
+    # these are shorthands for setting the appropriate `entity_attributes` values
+    #
+    # accepted values can be found in the python module `saml2.entity_category`
+    # https://github.com/IdentityPython/pysaml2/tree/master/src/saml2/entity_category
+    entity_category:
+      # R&S
+      - "http://refeds.org/category/research-and-scholarship"
+
+      # GEANT Code of Conduct v1
+      - "http://www.geant.net/uri/dataprotection-code-of-conduct/v1"
+
+    # Information about the service in question
+    service:
+      sp:
+        ui_info:
+          display_name:
+            - lang: "de"
+              text: "TU Wien Research Data"
+            - lang: "en"
+              text: "TU Wien Research Data"
+          description:
+            - lang: "de"
+              text: "Das institutionelle Forschungsdaten-Repository der TU Wien"
+            - lang: "en"
+              text: "The institutional research data repository of TU Wien"
+          information_url:
+            - lang: "de"
+              text: "https://researchdata.tuwien.ac.at/"
+            - lang: "en"
+              text: "https://researchdata.tuwien.ac.at/"
+          privacy_statement_url:
+            - lang: "en"
+              text: "https://www.tuwien.at/index.php?eID=dms&s=4&path=Documents/Data%20Protection%20Declaration%20Other/Data_Protection_Information_Research_Data.pdf"
+          keywords:
+            - lang: "en"
+              text: ["TU Wien", "Research Data"]
+          logo:
+            text: "https://researchdata.tuwien.ac.at/static/images/tu-wien-logo.png"
+            width: "100"
+            height: "100"
+
+        authn_requests_signed: false
+        want_response_signed: false
+        want_assertions_signed: false
+        want_assertions_or_response_signed: true
+        allow_unsolicited: true
+
+        endpoints:
+          assertion_consumer_service:
+            - ["<base_url>/<name>/acs/post", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"]
+          discovery_response:
+            - ["<base_url>/<name>/disco", "urn:oasis:names:tc:SAML:profiles:SSO:idp-discovery-protocol"]
+
+        # name_id_format: a list of strings to set the <NameIDFormat> element in SP metadata
+        # name_id_policy_format: a string to set the Format attribute in the NameIDPolicy element
+        # of the authentication request
+        # name_id_format_allow_create: sets the AllowCreate attribute in the NameIDPolicy element
+        # of the authentication request
+        name_id_format_allow_create: true
+
+        requested_attributes:
+          # "subject-id" (urn:oasis:names:tc:SAML:attribute:subject-id) and
+          # "pairwise-id" (urn:oasis:names:tc:SAML:attribute:pairwise-id) are
+          # special in how they're requested - they are newer than the SAML data model
+          # and their logic (only *one of them* is required) cannot be represented with
+          # simple boolean flags for "required"/"optional" - as such, they're left out here
+          #
+          # fallback for them: "ePPN"
+          # https://help.switch.ch/aai/support/documents/attributes/edupersonprincipalname/
+          - friendly_name: "eduPersonPrincipalName"
+            name: "urn:oid:1.3.6.1.4.1.5923.1.1.1.6"
+            name_format: "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+
+          # https://help.switch.ch/aai/support/documents/attributes/edupersonscopedaffiliation/
+          - friendly_name: "eduPersonScopedAffiliation"
+            name: "urn:oid:1.3.6.1.4.1.5923.1.1.1.6"
+            name_format: "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+
+          - friendly_name: "mail"
+            name: "urn:oid:0.9.2342.19200300.100.1.3"
+            name_format: "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+
+          - friendly_name: "givenName"
+            name: "urn:oid:2.5.4.42"
+            name_format: "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+
+          - friendly_name: "sn"
+            name: "urn:oid:2.5.4.4"
+            name_format: "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+
+          # https://help.switch.ch/aai/support/documents/attributes/displayname/
+          - friendly_name: "displayName"
+            name: "urn:oid:2.16.840.1.113730.3.1.241"
+            name_format: "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+
+          # TISS ID, in the case of the TUW IdP
+          - friendly_name: "uid"
+            name: "urn:oid:0.9.2342.19200300.100.1.1"
+            name_format: "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+
+        required_attributes:
+          - "mail"
+          - "displayName"
+          - "givenName"
+          - "sn"
+
+        optional_attributes:
+          - "eduPersonPrincipalName"
+          - "eduPersonScopedAffiliation"
+          - "uid"
