@@ -235,7 +235,7 @@ class SAMLFrontend(FrontendModule, SAMLBaseModule):
             return ServiceError("Incorrect request from requester: %s" % e)
 
         requester = resp_args["sp_entity_id"]
-        context.state[self.name] = self._create_state_data(context, idp.response_args(authn_req),
+        context.state[self.name] = self._create_state_data(context, resp_args,
                                                            context.request.get("RelayState"))
 
         subject = authn_req.subject
