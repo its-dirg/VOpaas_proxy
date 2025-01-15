@@ -32,6 +32,7 @@ setup(
         "pyop_mongo": ["pyop[mongo]"],
         "pyop_redis": ["pyop[redis]"],
         "idpy_oidc_backend": ["idpyoidc >= 2.1.0"],
+        "entraid_oidc_backend": ["msal==1.28.0"],
     },
     zip_safe=False,
     classifiers=[

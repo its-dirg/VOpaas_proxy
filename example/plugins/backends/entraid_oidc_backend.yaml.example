@@ -1,0 +1,41 @@
+module: satosa.backends.entraid_oidc.EntraIDOIDCBackend
+name: entraid_oidc
+config:
+  # https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc#find-your-apps-openid-configuration-document-uri
+  # The issuer will usually be https://login.microsoftonline.com/{tenant}/v2.0 unless
+  # targeting a specific population.
+  issuer: "https://login.microsoftonline.com/{tenantid}/v2.0"
+  redirect_uri: "<base_url>/<name>"
+  # Scopes are added by default by the msal library, so there's no need to
+  # provide common scopes. Default scopes: offline_access openid profile.
+  # To get information from default scopes, you have to enable API
+  # access under API permissions -> Graph -> OpenId
+  # Add optional claims family_name and given_name if necessary to the app.
+  scopes:
+  - User.Read
+  client:        
+    # https://learn.microsoft.com/en-us/python/api/msal/msal.application.confidentialclientapplication?view=msal-py-latest
+    # Arguments to initialize ConfidentialClientApplication
+    init:                  
+      client_id: "CLIENT_ID_HERE"
+      client_credential: "CLIENT_CREDENTIAL_HERE"
+      # Token authority, by default will be https://login.microsoftonline.com/common but common
+      # can be replaced by your target tenant
+      authority: "https://login.microsoftonline.com/common"
+      app_name: "SATOSA"
+    # https://learn.microsoft.com/en-us/python/api/msal/msal.application.clientapplication?view=msal-py-latest#msal-application-clientapplication-initiate-auth-code-flow
+    # Additional arguments to ConfidentialClientApplication.initiate_auth_code_flow
+    initiate_auth_code_flow_args: {}
+  entity_info:
+    organization:
+      display_name:
+      - ["Microsoft", "en"]
+      name:
+      - ["Microsoft", "en"]
+      url:
+      - ["https://www.microsoft.com/about/", "en"]
+    ui_info:
+      description:
+      - ["Microsoft OP", "en"]
+      display_name:
+      - ["Microsoft", "en"]
