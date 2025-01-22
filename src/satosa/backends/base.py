@@ -3,6 +3,9 @@ Holds a base class for backend modules used in the SATOSA proxy.
 """
 
 from ..attribute_mapping import AttributeMapper
+from ..util import join_paths
+
+from urllib.parse import urlparse
 
 
 class BackendModule(object):
@@ -29,8 +32,11 @@ class BackendModule(object):
         self.auth_callback_func = auth_callback_func
         self.internal_attributes = internal_attributes
         self.converter = AttributeMapper(internal_attributes)
-        self.base_url = base_url
+        self.base_url = base_url.rstrip("/") if base_url else ""
+        self.base_path = urlparse(self.base_url).path.lstrip("/")
         self.name = name
+        self.endpoint_baseurl = join_paths(self.base_url, self.name)
+        self.endpoint_basepath = urlparse(self.endpoint_baseurl).path.lstrip("/")
 
     def start_auth(self, context, internal_request):
         """

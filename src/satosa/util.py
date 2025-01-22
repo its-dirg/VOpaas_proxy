@@ -5,6 +5,7 @@ import hashlib
 import logging
 import random
 import string
+import typing
 
 
 logger = logging.getLogger(__name__)
@@ -89,3 +90,25 @@ def rndstr(size=16, alphabet=""):
     if not alphabet:
         alphabet = string.ascii_letters[0:52] + string.digits
     return type(alphabet)().join(rng.choice(alphabet) for _ in range(size))
+
+
+def join_paths(*paths, sep: typing.Optional[str] = None) -> str:
+    """
+    Joins strings with a separator like they were path components. The
+    separator is stripped off from all path components, except for the
+    beginning of the first component. Empty (or falsy) components are skipped.
+    Note that the components are not sanitized in any other way.
+
+    Raises TypeError if any of the components are not strings (or empty).
+    """
+    sep = sep or "/"
+    leading = ""
+    if paths and paths[0] and paths[0][0] == sep:
+        leading = sep
+
+    try:
+        return leading + sep.join(
+            path.strip(sep) for path in filter(lambda p: p and p.strip(sep), paths)
+        )
+    except (AttributeError, TypeError) as err:
+        raise TypeError("Arguments must be strings") from err

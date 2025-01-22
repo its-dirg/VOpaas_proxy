@@ -12,6 +12,7 @@ from satosa.internal import InternalData
 from ..exception import SATOSAAuthenticationError
 from ..micro_services.base import ResponseMicroService
 from ..response import Redirect
+from ..util import join_paths
 
 import satosa.logging_util as lu
 logger = logging.getLogger(__name__)
@@ -161,4 +162,11 @@ class AccountLinking(ResponseMicroService):
 
         :return: A list of endpoints bound to a function
         """
-        return [("^account_linking%s$" % self.endpoint, self._handle_al_response)]
+        return [
+            (
+                "^{}$".format(
+                    join_paths(self.base_path, "account_linking", self.endpoint)
+                ),
+                self._handle_al_response,
+            )
+        ]

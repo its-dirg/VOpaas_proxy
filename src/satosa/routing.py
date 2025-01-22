@@ -24,11 +24,12 @@ class ModuleRouter(object):
     and handles the internal routing between frontends and backends.
     """
 
-    def __init__(self, frontends, backends, micro_services):
+    def __init__(self, frontends, backends, micro_services, base_path=None):
         """
         :type frontends: dict[str, satosa.frontends.base.FrontendModule]
         :type backends: dict[str, satosa.backends.base.BackendModule]
         :type micro_services: Sequence[satosa.micro_services.base.MicroService]
+        :type base_path: str
 
         :param frontends: All available frontends used by the proxy. Key as frontend name, value as
         module
@@ -36,6 +37,7 @@ class ModuleRouter(object):
         module
         :param micro_services: All available micro services used by the proxy. Key as micro service name, value as
         module
+        :param base_path: Base path for endpoint mapping
         """
 
         if not frontends or not backends:
@@ -53,6 +55,8 @@ class ModuleRouter(object):
                                    for instance in micro_services}
         else:
             self.micro_services = {}
+
+        self.base_path = base_path if base_path else ""
 
         logger.debug("Loaded backends with endpoints: {}".format(backends))
         logger.debug("Loaded frontends with endpoints: {}".format(frontends))
@@ -120,6 +124,19 @@ class ModuleRouter(object):
 
         raise ModuleRouter.UnknownEndpoint(context.path)
 
+    def _find_backend(self, request_path):
+        """
+        Tries to guess the backend in use from the request.
+        Returns the backend name or None if the backend was not specified.
+        """
+        request_path = request_path.lstrip("/")
+        if self.base_path and request_path.startswith(self.base_path):
+            request_path = request_path[len(self.base_path):].lstrip("/")
+        backend_guess = request_path.split("/")[0]
+        if backend_guess in self.backends:
+            return backend_guess
+        return None
+
     def endpoint_routing(self, context):
         """
         Finds and returns the endpoint function bound to the path
@@ -141,13 +158,12 @@ class ModuleRouter(object):
         msg = "Routing path: {path}".format(path=context.path)
         logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
         logger.debug(logline)
-        path_split = context.path.split("/")
-        backend = path_split[0]
 
-        if backend in self.backends:
+        backend = self._find_backend(context.path)
+        if backend is not None:
             context.target_backend = backend
         else:
-            msg = "Unknown backend {}".format(backend)
+            msg = "No backend was specified in request or no such backend {}".format(backend)
             logline = lu.LOG_FMT.format(
                 id=lu.get_session_id(context.state), message=msg
             )
@@ -156,6 +172,8 @@ class ModuleRouter(object):
         try:
             name, frontend_endpoint = self._find_registered_endpoint(context, self.frontends)
         except ModuleRouter.UnknownEndpoint:
+            for frontend in self.frontends.values():
+                logger.debug(f"Unable to find {context.path} in {frontend['endpoints']}")
             pass
         else:
             context.target_frontend = name
@@ -169,7 +187,7 @@ class ModuleRouter(object):
             context.target_micro_service = name
             return micro_service_endpoint
 
-        if backend in self.backends:
+        if backend is not None:
             backend_endpoint = self._find_registered_backend_endpoint(context)
             if backend_endpoint:
                 return backend_endpoint
