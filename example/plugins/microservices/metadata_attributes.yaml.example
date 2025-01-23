@@ -1,0 +1,21 @@
+module: satosa.micro_services.attribute_modifications.AddMetadataAttributes
+name: AddMetadataAttributes
+config:
+    attribute_mapping:
+        - name: shibmd_scopes
+          type: shibmd_scopes
+        - name: contact_person_data
+          type: contact_person_data
+        - name: assurance_certifications
+          type: assurance_certifications
+        - name: registration_info
+          type: registration_info
+        - name: registration_authority
+          type: registration_authority
+        - name: entity_categories
+          type: entity_categories
+        - name: supported_entity_categories
+          type: supported_entity_categories
+        - name: entity_attributes
+          type: entity_attributes
+

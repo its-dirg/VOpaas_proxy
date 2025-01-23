@@ -7,6 +7,7 @@ from ..exception import SATOSAError
 
 logger = logging.getLogger(__name__)
 
+
 class AddStaticAttributes(ResponseMicroService):
     """
     Add static attributes to the responses.
@@ -19,6 +20,64 @@ class AddStaticAttributes(ResponseMicroService):
     def process(self, context, data):
         data.attributes.update(self.static_attributes)
         return super().process(context, data)
+
+
+class AddMetadataAttributes(ResponseMicroService):
+    """
+    Add metadata-derived attributes to the responses.
+    """
+
+    def __init__(self, config, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.attribute_mapping = config["attribute_mapping"]
+
+    def process(self, context, data):
+        data.attributes.update(self.get_attribute_values(context, data.auth_info.issuer, self.attribute_mapping))
+        return super().process(context, data)
+
+    def get_attribute_values(self, context, target_provider, attribute_mapping):
+        attribute_values = {}
+        mdstore = context.get_decoration(Context.KEY_METADATA_STORE)
+        if not mdstore:
+            return attribute_values  # empty: nothing we can do without an mdstore
+        for am in attribute_mapping:
+            value = None
+            if am['type'] == "shibmd_scopes":
+                scopes = mdstore.shibmd_scopes(target_provider, "idpsso_descriptor")
+
+                # saml2.MDStore.shibmd_scopes returns compiled RE Pattern objects, but these are not serializable.
+                # Replace them back with the original pattern text.
+                # And wrap the resulting list in a dict, as mod_auth_openidc does not accept lists of JSON objects.
+                value = {"scopes":
+                         [
+                             {"regexp": scope['regexp'], "text": scope['text'].pattern if scope['regexp'] else scope['text']}
+                             for scope in scopes
+                         ]}
+            elif am['type'] == "contact_person_data":
+                # Convert tuple to a list to make it serializable.
+                # And wrap it in a dict, as mod_auth_openidc does not accept lists of JSON objects.
+                value = {"contacts": list(mdstore.contact_person_data(target_provider))}
+            elif am['type'] == "assurance_certifications":
+                # Convert tuple to a list to make it serializable.
+                value = list(mdstore.assurance_certifications(target_provider))
+            elif am['type'] == "registration_info":
+                value = mdstore.registration_info(target_provider)
+            elif am['type'] == "registration_authority":
+                registration_info = mdstore.registration_info(target_provider)
+                if registration_info and 'registration_authority' in registration_info:
+                    value = registration_info['registration_authority']
+            elif am['type'] == "entity_categories":
+                value = mdstore.entity_categories(target_provider)
+            elif am['type'] == "supported_entity_categories":
+                value = mdstore.supported_entity_categories(target_provider)
+            elif am['type'] == "entity_attributes":
+                value = mdstore.entity_attributes(target_provider)
+            else:
+                raise SATOSAError("Unknown SAML metadata attribute type")
+
+            if value:
+                attribute_values[am['name']] = value
+        return attribute_values
 
 
 class FilterAttributeValues(ResponseMicroService):
