@@ -526,13 +526,13 @@ class LdapAttributeStore(ResponseMicroService):
 
             # For now consider only the first record found (if any).
             if len(responses) > 0:
-                if len(responses) > 1:
+                if len(responses) > 1 and not config.get("use_all_results", False):
                     msg = "LDAP server returned {} records using search filter"
                     msg = msg + " value {}"
                     msg = msg.format(len(responses), filter_val)
                     logline = lu.LOG_FMT.format(id=session_id, message=msg)
                     logger.warning(logline)
-                record = responses[0]
+                    responses = responses[0:1]
                 break
 
         # Before using a found record, if any, to populate attributes
@@ -544,73 +544,76 @@ class LdapAttributeStore(ResponseMicroService):
             logger.debug(logline)
             data.attributes = {}
 
-        # This adapts records with different search and connection strategy
-        # (sync without pool), it should be tested with anonimous bind with
-        # message_id.
-        if isinstance(results, bool) and record:
-            record = {
-                "dn": record.entry_dn if hasattr(record, "entry_dn") else "",
-                "attributes": (
-                    record.entry_attributes_as_dict
-                    if hasattr(record, "entry_attributes_as_dict")
-                    else {}
-                ),
-            }
+        for record in responses:
+            # This adapts records with different search and connection strategy
+            # (sync without pool), it should be tested with anonimous bind with
+            # message_id.
+            if isinstance(results, bool) and record:
+                record = {
+                    "dn": record.entry_dn if hasattr(record, "entry_dn") else "",
+                    "attributes": (
+                        record.entry_attributes_as_dict
+                        if hasattr(record, "entry_attributes_as_dict")
+                        else {}
+                    ),
+                }
 
-        # Use a found record, if any, to populate attributes and input for
-        # NameID
-        if record:
-            msg = {
-                "message": "Using record with DN and attributes",
-                "DN": record["dn"],
-                "attributes": record["attributes"],
-            }
-            logline = lu.LOG_FMT.format(id=session_id, message=msg)
-            logger.debug(logline)
-
-            # Populate attributes as configured.
-            new_attrs = self._populate_attributes(config, record)
-
-            overwrite = config["overwrite_existing_attributes"]
-            for attr, values in new_attrs.items():
-                if not overwrite:
-                    values = list(set(data.attributes.get(attr, []) + values))
-                data.attributes[attr] = values
-
-            # Populate input for NameID if configured. SATOSA core does the
-            # hashing of input to create a persistent NameID.
-            user_ids = self._populate_input_for_name_id(config, record, data)
-            if user_ids:
-                data.subject_id = "".join(user_ids)
-            msg = "NameID value is {}".format(data.subject_id)
-            logger.debug(msg)
-
-            # Add the record to the context so that later microservices
-            # may use it if required.
-            context.decorate(KEY_FOUND_LDAP_RECORD, record)
-            msg = "Added record {} to context".format(record)
-            logline = lu.LOG_FMT.format(id=session_id, message=msg)
-            logger.debug(logline)
-        else:
-            msg = "No record found in LDAP so no attributes will be added"
-            logline = lu.LOG_FMT.format(id=session_id, message=msg)
-            logger.warning(logline)
-            on_ldap_search_result_empty = config["on_ldap_search_result_empty"]
-            if on_ldap_search_result_empty:
-                # Redirect to the configured URL with
-                # the entityIDs for the target SP and IdP used by the user
-                # as query string parameters (URL encoded).
-                encoded_sp_entity_id = urllib.parse.quote_plus(requester)
-                encoded_idp_entity_id = urllib.parse.quote_plus(issuer)
-                url = "{}?sp={}&idp={}".format(
-                    on_ldap_search_result_empty,
-                    encoded_sp_entity_id,
-                    encoded_idp_entity_id,
-                )
-                msg = "Redirecting to {}".format(url)
+            # Use a found record, if any, to populate attributes and input for
+            # NameID
+            if record:
+                msg = {
+                    "message": "Using record with DN and attributes",
+                    "DN": record["dn"],
+                    "attributes": record["attributes"],
+                }
                 logline = lu.LOG_FMT.format(id=session_id, message=msg)
-                logger.info(logline)
-                return Redirect(url)
+                logger.debug(logline)
+
+                # Populate attributes as configured.
+                new_attrs = self._populate_attributes(config, record)
+
+                overwrite = config["overwrite_existing_attributes"]
+                for attr, values in new_attrs.items():
+                    if not overwrite:
+                        values = list(map(str, set(data.attributes.get(attr, []) + values)))
+                    else:
+                        values = list(map(str, set(values)))
+                    data.attributes[attr] = values
+
+                # Populate input for NameID if configured. SATOSA core does the
+                # hashing of input to create a persistent NameID.
+                user_ids = self._populate_input_for_name_id(config, record, data)
+                if user_ids:
+                    data.subject_id = "".join(user_ids)
+                msg = "NameID value is {}".format(data.subject_id)
+                logger.debug(msg)
+
+                # Add the record to the context so that later microservices
+                # may use it if required.
+                context.decorate(KEY_FOUND_LDAP_RECORD, record)
+                msg = "Added record {} to context".format(record)
+                logline = lu.LOG_FMT.format(id=session_id, message=msg)
+                logger.debug(logline)
+            else:
+                msg = "No record found in LDAP so no attributes will be added"
+                logline = lu.LOG_FMT.format(id=session_id, message=msg)
+                logger.warning(logline)
+                on_ldap_search_result_empty = config["on_ldap_search_result_empty"]
+                if on_ldap_search_result_empty:
+                    # Redirect to the configured URL with
+                    # the entityIDs for the target SP and IdP used by the user
+                    # as query string parameters (URL encoded).
+                    encoded_sp_entity_id = urllib.parse.quote_plus(requester)
+                    encoded_idp_entity_id = urllib.parse.quote_plus(issuer)
+                    url = "{}?sp={}&idp={}".format(
+                        on_ldap_search_result_empty,
+                        encoded_sp_entity_id,
+                        encoded_idp_entity_id,
+                    )
+                    msg = "Redirecting to {}".format(url)
+                    logline = lu.LOG_FMT.format(id=session_id, message=msg)
+                    logger.info(logline)
+                    return Redirect(url)
 
         msg = "Returning data.attributes {}".format(data.attributes)
         logline = lu.LOG_FMT.format(id=session_id, message=msg)

@@ -93,6 +93,10 @@ config:
       user_id_from_attrs:
         - employeeNumber
 
+      # If true, do not only process the first ldap result, but iterate over
+      # the result and process all of them.
+      use_all_results: false
+
       # Where to redirect the browser if no record is returned
       # from LDAP. The default is not to redirect.
       on_ldap_search_result_empty: https://my.vo.org/please/go/enroll
