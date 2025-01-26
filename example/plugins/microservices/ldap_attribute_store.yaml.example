@@ -27,6 +27,9 @@ config:
       # pool_keepalive: seconds to wait between calls to server to keep the
       # connection alive; default: 10
       pool_keepalive: 10
+      # pool_lifetime: number of seconds before recreating a new connection
+      # in a pooled connection strategy.
+      pool_lifetime: None
 
       # Attributes to return from LDAP query.
       query_return_attributes:

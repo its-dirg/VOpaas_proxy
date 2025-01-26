@@ -2,6 +2,8 @@ import pytest
 
 from copy import deepcopy
 
+from ldap3 import AUTO_BIND_NO_TLS, MOCK_SYNC
+
 from satosa.internal import AuthenticationInformation
 from satosa.internal import InternalData
 from satosa.micro_services.ldap_attribute_store import LdapAttributeStore
@@ -107,3 +109,60 @@ class TestLdapAttributeStore:
                     internal_attr = ldap_to_internal_map[ldap_attr]
                     response_attr = response.attributes[internal_attr]
                     assert(ldap_value in response_attr)
+
+    @pytest.mark.parametrize(
+        'config,connection_attributes',
+        [
+            (
+                {
+                    'auto_bind': 'AUTO_BIND_NO_TLS',
+                    'client_strategy': 'MOCK_SYNC',
+                    'ldap_url': 'ldap://satosa.example.com',
+                    'bind_dn': 'uid=readonly_user,ou=system,dc=example,dc=com',
+                    'bind_password': 'password',
+                },
+                {
+                    'user': 'uid=readonly_user,ou=system,dc=example,dc=com',
+                    'password': 'password',
+                    'auto_bind': AUTO_BIND_NO_TLS,
+                    'strategy_type': MOCK_SYNC,
+                    'read_only': True,
+                    'version': 3,
+                    'pool_size': 10,
+                    'pool_keepalive': 10,
+                    'pool_lifetime': None,
+                },
+            ),
+            (
+                {
+                    'auto_bind': 'AUTO_BIND_NO_TLS',
+                    'client_strategy': 'MOCK_SYNC',
+                    'ldap_url': 'ldap://satosa.example.com',
+                    'bind_dn': 'uid=readonly_user,ou=system,dc=example,dc=com',
+                    'bind_password': 'password',
+                    'pool_size': 40,
+                    'pool_keepalive': 41,
+                    'pool_lifetime': 42,
+                },
+                {
+                    'user': 'uid=readonly_user,ou=system,dc=example,dc=com',
+                    'password': 'password',
+                    'auto_bind': AUTO_BIND_NO_TLS,
+                    'strategy_type': MOCK_SYNC,
+                    'read_only': True,
+                    'version': 3,
+                    'pool_size': 40,
+                    'pool_keepalive': 41,
+                    'pool_lifetime': 42,
+                },
+            ),
+        ]
+    )
+    def test_connection_config(self, config, connection_attributes):
+        ldapAttributeStore = LdapAttributeStore({'default': config},
+                                                name="test_ldap_attribute_store",
+                                                base_url="https://satosa.example.com")
+        connection = ldapAttributeStore.config['default']['connection']
+
+        for k, v in connection_attributes.items():
+            assert getattr(connection, k) == v
