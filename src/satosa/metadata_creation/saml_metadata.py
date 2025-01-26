@@ -104,8 +104,8 @@ def create_entity_descriptors(satosa_config):
     :type satosa_config: satosa.satosa_config.SATOSAConfig
     :rtype: Tuple[str, str]
     """
-    frontend_modules = load_frontends(satosa_config, None, satosa_config["INTERNAL_ATTRIBUTES"])
-    backend_modules = load_backends(satosa_config, None, satosa_config["INTERNAL_ATTRIBUTES"])
+    frontend_modules = load_frontends(satosa_config, None, satosa_config["INTERNAL_ATTRIBUTES"], None)
+    backend_modules = load_backends(satosa_config, None, satosa_config["INTERNAL_ATTRIBUTES"], None, None)
     logger.info("Loaded frontend plugins: {}".format([frontend.name for frontend in frontend_modules]))
     logger.info("Loaded backend plugins: {}".format([backend.name for backend in backend_modules]))
 

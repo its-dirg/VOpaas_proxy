@@ -19,6 +19,7 @@ from satosa.backends.idpy_oidc import IdpyOIDCBackend
 from satosa.context import Context
 from satosa.internal import InternalData
 from satosa.response import Response
+from satosa.storage import StorageInMemory
 
 ISSUER = "https://provider.example.com"
 CLIENT_ID = "test_client"
@@ -64,9 +65,41 @@ class TestIdpyOIDCBackend(object):
             }
         }
 
+    @pytest.fixture
+    def storage(self):
+        backend_sessions = [
+            {
+                "id": 1,
+                "sid": "30f8dae4-1da5-41bf-a801-5aad0648af8c",
+                "issuer": "https://login.microsoftonline.com/4ef96300-df5b-4978-8bb6-54ead73fd78e/v2.0"
+            }
+        ]
+
+        session_maps = [
+            {
+                "backend_session_id": 1,
+                "frontend_sid": "urn:uuid:26f0122d-4347-4e45-a6db-fceed571222a"
+            }
+        ]
+
+        frontend_sessions = [
+            {
+                "frontend_name": "OIDC",
+                "requester": "5258756a-f970-433e-8fee-0ec85b938fe6",
+                "subject_id": "yiPzYn2ASoQznkqSxSaYySg9qrlDejM0Lcn6mef28Mg",
+                "sid": "urn:uuid:26f0122d-4347-4e45-a6db-fceed571222a"
+            }
+        ]
+
+        storage = StorageInMemory({})
+        storage.backend_sessions = backend_sessions
+        storage.frontend_sessions = frontend_sessions
+        storage.session_maps = session_maps
+        return storage
+
     @pytest.fixture(autouse=True)
     @responses.activate
-    def create_backend(self, internal_attributes, backend_config):
+    def create_backend(self, internal_attributes, backend_config, storage):
         base_url = backend_config['client']['base_url']
         self.issuer_keys = build_keyjar(DEFAULT_KEY_DEFS)
         with responses.RequestsMock() as rsps:
@@ -78,7 +111,7 @@ class TestIdpyOIDCBackend(object):
                 content_type="application/json")
 
             self.oidc_backend = IdpyOIDCBackend(Mock(), internal_attributes, backend_config,
-                                                base_url, "oidc")
+                                                base_url, "oidc", storage, Mock())
 
     @pytest.fixture
     def userinfo(self):
@@ -233,3 +266,11 @@ class TestIdpyOIDCBackend(object):
         assert "state" in auth_params
         assert "nonce" in auth_params
 
+    def test_front_channel_logout_endpoint_with_oidc_frontend(self, context):
+        context.request = {"sid": "30f8dae4-1da5-41bf-a801-5aad0648af8c"}
+        self.oidc_backend.front_channel_logout_endpoint(context)
+        args = self.oidc_backend.logout_callback_func.call_args[0]
+        assert isinstance(args[0], Context)
+        assert isinstance(args[1], InternalData)
+        assert args[1].get("issuer") == "https://login.microsoftonline.com/4ef96300-df5b-4978-8bb6-54ead73fd78e/v2.0"
+        assert args[1].get("backend_session_id") == 1

@@ -6,8 +6,10 @@ from saml2 import BINDING_HTTP_REDIRECT, BINDING_HTTP_POST
 from saml2.extension.idpdisc import BINDING_DISCO
 from saml2.saml import NAME_FORMAT_URI, NAMEID_FORMAT_TRANSIENT, NAMEID_FORMAT_PERSISTENT
 
+from satosa.plugin_loader import load_storage
 from satosa.context import Context
 from satosa.state import State
+
 from .util import create_metadata_from_config_dict
 from .util import generate_cert, write_cert
 
@@ -353,3 +355,13 @@ def consent_module_config(signing_key_path):
         }
     }
     return consent_config
+
+
+@pytest.fixture
+def storage():
+    storage_config = {
+        "STORAGE": {
+            "type": "satosa.storage.StorageInMemory"
+        }
+    }
+    return load_storage(storage_config)

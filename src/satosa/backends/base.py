@@ -10,13 +10,17 @@ class BackendModule(object):
     Base class for a backend module.
     """
 
-    def __init__(self, auth_callback_func, internal_attributes, base_url, name):
+    def __init__(self, auth_callback_func, internal_attributes, base_url, name, storage, logout_callback_func):
         """
         :type auth_callback_func:
         (satosa.context.Context, satosa.internal.InternalData) -> satosa.response.Response
         :type internal_attributes: dict[string, dict[str, str | list[str]]]
         :type base_url: str
         :type name: str
+        :type storage: satosa.storage.Storage
+        :type logout_callback_func: str
+        (satosa.context.Context, satosa.internal.InternalData) -> satosa.response.Response
+
 
         :param auth_callback_func: Callback should be called by the module after
                                    the authorization in the backend is done.
@@ -25,12 +29,18 @@ class BackendModule(object):
         RP's expects namevice.
         :param base_url: base url of the service
         :param name: name of the plugin
+        :param storage: storage to hold the backend session information
+        :param logout_callback_func: Callback should be called by the module after the logout
+        in the backend is done. This may trigger log out flow for all the frontends associated
+        with the backend session
         """
         self.auth_callback_func = auth_callback_func
         self.internal_attributes = internal_attributes
         self.converter = AttributeMapper(internal_attributes)
         self.base_url = base_url
         self.name = name
+        self.storage = storage
+        self.logout_callback_func = logout_callback_func
 
     def start_auth(self, context, internal_request):
         """

@@ -496,6 +496,109 @@ When using an OP that only supports statically registered clients, see the
 and make sure to provide the redirect URI, constructed as described in the
 section about Google configuration below, in the static registration.
 
+### Logout in OIDC Backend
+
+The OpenID Connect backend supports Global Logout proces, which means terminating a user’s session on the IdP and all 
+RPs that the user currently has an active session for. At the time of authentication, SATOSA maintains the following 
+session information as part of its storage:
+
+#### Backend Session
+This contains the following:
+
+1. SID: Retrieved from the user claims, gotten from the OP after a successful authentication flow.
+2. Issuer: The Issuer URL of the OP
+
+Since SID and Issuer uniquely identify a Backend Session, after persisting Backend Session, a new ID (auto-incremented)
+is generated, called `backend_sid` which uniquely identifies a Backend Session.
+
+#### Frontend Session
+This contains the following:
+
+1. Frontend name: Name of the Frontend, which could be of any type, for example OIDC, SAML, etc.
+2. Requester: Only stored in the case of OIDC Frontend, and is required at the time of logout for the creation of 
+   Logout Token when logging out an RP.
+3. Subject ID: Only stored in the case of OIDC Frontend, and is required at the time of logout for the creation of 
+   Logout Token when logging out an RP.
+4. Frontend SID: The value of SATOSA context state `session_id` which uniquely identified the Frontend Session.
+
+#### Session Map
+Since at the time of logout, SATOSA needs to know the information about the Frontend Session associated with the
+Backend Session, a Session Map is required to be maintained. This enables SATOSA to logout all the connected Frontend, 
+irrespective of the type, OIDC, SAML, etc. when the OIDC Backend receives a logout request by an OP.
+
+This contains the following:
+
+1. Backend Session ID
+2. Frontend Session ID
+
+In order to enable the OIDC Backend logout functionality, the following flag is required to be set in the 
+`proxy.conf.yaml` file.
+
+````yaml
+LOGOUT_ENABLED: True
+````
+
+The default value of `LOGOUT_ENABLED` flag is False. When the logout is not enabled, all the calls to the storage are
+mocked and hence none of the session information is persisted in the storage.
+
+SATOSA provides two types of storage adapters out of the box:
+
+1. In Memory
+2. PostgreSQL
+
+If the logout is enabled and storage configuration is not defined, by default In Memory storage is used.
+
+The storage configurations are defined in the `proxy_conf.yaml` file. An example configuration for the storage looks as below:
+
+```yaml
+STORAGE:
+  type: satosa.storage.StoragePostgreSQL
+  host: 127.0.0.1
+  port: 5432
+  db_name: satosa
+  user: postgres
+  password: secret
+```
+
+The following diagram illustrates at what point each of the discussed session storages are being persisted in an
+OIDC to OIDC authentication flow.
+
+### Session Storage in OpenID Connect Frontend <-> Idpy OIDC Backend
+
+![](images/session-storage.png "Session Storage")
+
+The OIDC backend supports the following flows of Global Logout:
+
+1. OP Initiated Logout with Front-Channel Communication
+2. OP Initiated Logout with Back-Channel Communication
+
+In the OIDC Backend configuration, depending on which logout to support, the following needs to be defined for the client:
+
+````yaml
+front_channel_logout_uri: <base_url>/<name>/front-channel-logout
+back_channel_logout_uri: <base_url>/<name>/back-channel-logout
+````
+
+The same URL is required to be defined in the OP when registering this client.
+
+When the OIDC Backend receives the Front-Channel logout request, after validating the request, it calls the 
+`logout_callback_func` defined in `SATOSABase` which retrieves all the frontend sessions, and triggers the logout
+for them one by one. If the Frontend logout is successful, the Frontend is responsible to delete the Frontend Session
+entry. Once all the Frontend sessions are successfully logged out, the Session Map entry is deleted as well, and at 
+last, the Backend Session is deleted as well by the  `_backend_logout_req_finish` in `SATOSABase`.
+
+The following diagram illustrates a high level flow of OIDC Backend Back-channel logout.
+
+### OIDC Backend Back-channel Logout
+
+![](images/oidc-be-backchannel-logout.png "OIDC Backend Back-channel Logout")
+
+The following diagram illustrates a high level flow of OIDC Backend Front-channel logout.
+
+### OIDC Backend Front-channel Logout
+
+![](images/oidc-be-frontchannel-logout.png "OIDC Backend Front-channel Logout")
+
 ### Social login plugins
 
 The social login plugins can be used as backends for the proxy, allowing the

@@ -19,7 +19,7 @@ class BitBucketBackend(_OAuthBackend):
 
     logprefix = "BitBucket Backend:"
 
-    def __init__(self, outgoing, internal_attributes, config, base_url, name):
+    def __init__(self, outgoing, internal_attributes, config, base_url, name, storage, logout_callback_func):
         """BitBucket backend constructor
         :param outgoing: Callback should be called by the module after the
             authorization in the backend is done.
@@ -29,6 +29,11 @@ class BitBucketBackend(_OAuthBackend):
         :param config: configuration parameters for the module.
         :param base_url: base url of the service
         :param name: name of the plugin
+        :param storage: storage to hold the backend session information
+        :param logout_callback_func: Callback should be called by the module after the logout
+        in the backend is done. This may trigger log out flow for all the frontends associated
+        with the backend session
+
         :type outgoing:
             (satosa.context.Context, satosa.internal.InternalData) ->
             satosa.response.Response
@@ -36,11 +41,14 @@ class BitBucketBackend(_OAuthBackend):
         :type config: dict[str, dict[str, str] | list[str] | str]
         :type base_url: str
         :type name: str
+        :type storage: satosa.storage.Storage
+        :type logout_callback_func: str
+        (satosa.context.Context, satosa.internal.InternalData) -> satosa.response.Response
         """
         config.setdefault('response_type', 'code')
         config['verify_accesstoken_state'] = False
-        super().__init__(outgoing, internal_attributes, config, base_url,
-                         name, 'bitbucket', 'account_id')
+        super().__init__(outgoing, internal_attributes, config, base_url, name, 'bitbucket', 'account_id',
+                         storage, logout_callback_func)
 
     def get_request_args(self, get_state=stateID):
         request_args = super().get_request_args(get_state=get_state)

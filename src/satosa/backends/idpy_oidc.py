@@ -5,8 +5,9 @@ import datetime
 import logging
 from urllib.parse import urlparse
 
-from idpyoidc.client.oauth2.stand_alone_client import StandAloneClient
+from idpyoidc.client.oauth2.stand_alone_client import StandAloneClient, backchannel_logout
 from idpyoidc.server.user_authn.authn_context import UNSPECIFIED
+from idpyoidc.message.oidc.session import BackChannelLogoutRequest, LogoutToken
 
 from satosa.backends.base import BackendModule
 from satosa.internal import AuthenticationInformation
@@ -14,7 +15,7 @@ from satosa.internal import InternalData
 import satosa.logging_util as lu
 from ..exception import SATOSAAuthenticationError
 from ..exception import SATOSAError
-from ..response import Redirect
+from ..response import Redirect, Response
 
 
 UTC = datetime.timezone.utc
@@ -26,7 +27,8 @@ class IdpyOIDCBackend(BackendModule):
     Backend module for OIDC and OAuth 2.0, can be directly used.
     """
 
-    def __init__(self, auth_callback_func, internal_attributes, config, base_url, name):
+    def __init__(self, auth_callback_func, internal_attributes, config, base_url, name, storage,
+                 logout_callback_func):
         """
         OIDC backend module.
         :param auth_callback_func: Callback should be called by the module after the authorization
@@ -37,6 +39,10 @@ class IdpyOIDCBackend(BackendModule):
         :param config: Configuration parameters for the module.
         :param base_url: base url of the service
         :param name: name of the plugin
+        :param storage: storage to hold the backend session information
+        :param logout_callback_func: Callback should be called by the module after the logout
+        in the backend is done. This may trigger log out flow for all the frontends associated
+        with the backend session
 
         :type auth_callback_func:
         (satosa.context.Context, satosa.internal.InternalData) -> satosa.response.Response
@@ -44,10 +50,11 @@ class IdpyOIDCBackend(BackendModule):
         :type config: dict[str, dict[str, str] | list[str]]
         :type base_url: str
         :type name: str
+        :type storage: satosa.storage.Storage
+        :type logout_callback_func: str
+        (satosa.context.Context, satosa.internal.InternalData) -> satosa.response.Response
         """
-        super().__init__(auth_callback_func, internal_attributes, base_url, name)
-        # self.auth_callback_func = auth_callback_func
-        # self.config = config
+        super().__init__(auth_callback_func, internal_attributes, base_url, name, storage, logout_callback_func)
         self.client = StandAloneClient(config=config["client"], client_type="oidc")
         self.client.do_provider_info()
         self.client.do_client_registration()
@@ -56,6 +63,11 @@ class IdpyOIDCBackend(BackendModule):
         if not _redirect_uris:
             raise SATOSAError("Missing path in redirect uri")
         self.redirect_path = urlparse(_redirect_uris[0]).path
+
+        front_channel_logout_uri = config["client"].get('front_channel_logout_uri')
+        self.front_channel_logout_path = urlparse(front_channel_logout_uri).path if front_channel_logout_uri else None
+        back_channel_logout_uri = config["client"].get('back_channel_logout_uri')
+        self.back_channel_logout_path = urlparse(back_channel_logout_uri).path if back_channel_logout_uri else None
 
     def start_auth(self, context, internal_request):
         """
@@ -76,8 +88,11 @@ class IdpyOIDCBackend(BackendModule):
         :rtype: Sequence[(str, Callable[[satosa.context.Context], satosa.response.Response]]
         :return: A list that can be used to map the request to SATOSA to this endpoint.
         """
-        url_map = []
-        url_map.append((f"^{self.redirect_path.lstrip('/')}$", self.response_endpoint))
+        url_map = [(f"^{self.redirect_path.lstrip('/')}$", self.response_endpoint)]
+        if self.front_channel_logout_path:
+            url_map.append((f"^{self.front_channel_logout_path.lstrip('/')}$", self.front_channel_logout_endpoint))
+        if self.back_channel_logout_path:
+            url_map.append((f"^{self.back_channel_logout_path.lstrip('/')}$", self.back_channel_logout_endpoint))
         return url_map
 
     def response_endpoint(self, context, *args):
@@ -108,7 +123,84 @@ class IdpyOIDCBackend(BackendModule):
         logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
         logger.debug(logline)
         internal_resp = self._translate_response(all_user_claims, _info["issuer"])
+        sid = all_user_claims.get("sid")
+        if sid:
+            backend_session_id = self.storage.store_backend_session(sid, _info["issuer"])
+            internal_resp.backend_session_id = backend_session_id
         return self.auth_callback_func(context, internal_resp)
+
+    def front_channel_logout_endpoint(self, context):
+        """
+        Handles the front channel logout request from the OP.
+        :type context: satosa.context.Context
+        :rtype: satosa.response.Response
+
+        :param context: SATOSA context
+        :return:
+        """
+
+        logger.info(lu.LOG_FMT.format(id=lu.get_session_id(context.state),
+                                      message="Received front-channel logout request: {}".format(context.request)))
+        sid = context.request.get("sid")
+        issuer = context.request.get("iss")
+        backend_session = self.storage.get_backend_session(sid, issuer)
+
+        if backend_session:
+            internal_req = InternalData(
+                backend_session_id=backend_session["id"],
+                issuer=backend_session["issuer"]
+            )
+            return self.logout_callback_func(context, internal_req)
+        else:
+            return Response()
+
+    def back_channel_logout_endpoint(self, context):
+        """
+        Handles the back channel logout request from the OP.
+        :type context: satosa.context.Context
+        :rtype: satosa.response.Response
+
+        :param context: SATOSA context
+        :return:
+        """
+        logger.info(lu.LOG_FMT.format(id=lu.get_session_id(context.state),
+                                      message="Received back-channel logout request: {}".format(context.request)))
+
+        if not context.request.get("logout_token"):
+            logger.warning(lu.LOG_FMT.format(id=lu.get_session_id(context.state),
+                                             message="back-channel logout request is received without logout token"))
+            return Response(message="Missing logout token", status="400")
+        else:
+            back_channel_logout_request = BackChannelLogoutRequest(
+                logout_token=context.request["logout_token"]).to_urlencoded()
+
+            if self._verify_logout_token(context, back_channel_logout_request):
+                logout_token = LogoutToken().from_jwt(context.request["logout_token"], None)
+                sid = logout_token.get("sid")
+                issuer = logout_token.get("iss")
+                backend_session = self.storage.get_backend_session(sid, issuer)
+
+                if backend_session:
+                    internal_req = InternalData(
+                        backend_session_id=backend_session["id"],
+                        issuer=backend_session["issuer"]
+                    )
+                    return self.logout_callback_func(context, internal_req)
+                else:
+                    return Response(message="Invalid sid", status="400")
+            else:
+                return Response(message="Logout token verification failed", status="400")
+
+    def _verify_logout_token(self, context, back_channel_logout_request):
+        try:
+            logger.debug(lu.LOG_FMT.format(id=lu.get_session_id(context.state),
+                                           message="Starting logout token verification"))
+            backchannel_logout(self.client, back_channel_logout_request)
+            return True
+        except Exception as e:
+            logger.warning(lu.LOG_FMT.format(id=lu.get_session_id(context.state),
+                                             message="Logout token verification failed"), e)
+        return False
 
     def _translate_response(self, response, issuer):
         """

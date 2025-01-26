@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -7,7 +8,15 @@ from satosa.backends.base import BackendModule
 from satosa.exception import SATOSAConfigurationError
 from satosa.frontends.base import FrontendModule
 from satosa.micro_services.base import RequestMicroService, ResponseMicroService
-from satosa.plugin_loader import backend_filter, frontend_filter, _request_micro_service_filter, _response_micro_service_filter, _load_plugin_config
+from satosa.plugin_loader import (
+    backend_filter,
+    frontend_filter,
+    _request_micro_service_filter,
+    _response_micro_service_filter,
+    _load_plugin_config,
+    load_storage,
+)
+from satosa.storage import StoragePostgreSQL, StorageInMemory
 
 
 class TestFilters(object):
@@ -75,3 +84,34 @@ class TestLoadPluginConfig(object):
         data = """{foo: bar"""  # missing closing bracket
         with pytest.raises(SATOSAConfigurationError):
             _load_plugin_config(data)
+
+
+class TestLoadStorage(object):
+    def storage_postgresql_init_mock(self, config):
+        pass
+
+    @patch.object(
+        StoragePostgreSQL, "__init__", storage_postgresql_init_mock
+    )
+    def test_load_postgresql_session(self):
+        config = {
+            "LOGOUT_ENABLED": True,
+            "STORAGE": {
+                "type": "satosa.storage.StoragePostgreSQL",
+                "host": "127.0.0.1",
+                "port": 5432,
+                "db_name": "satosa",
+                "user": "postgres",
+                "password": "secret",
+            }
+        }
+        postgresql_storage = load_storage(config)
+        assert isinstance(postgresql_storage, StoragePostgreSQL)
+
+    def test_load_inmemory_session(self):
+        config = {"LOGOUT_ENABLED": True}
+        inmemory_storage = load_storage(config)
+        assert isinstance(inmemory_storage, StorageInMemory)
+        assert hasattr(inmemory_storage, "frontend_sessions")
+        assert hasattr(inmemory_storage, "backend_sessions")
+        assert hasattr(inmemory_storage, "session_maps")

@@ -25,7 +25,8 @@ NONCE = "the nonce"
 class TestOpenIDConnectBackend(object):
     @pytest.fixture(autouse=True)
     def create_backend(self, internal_attributes, backend_config):
-        self.oidc_backend = OpenIDConnectBackend(Mock(), internal_attributes, backend_config, "base_url", "oidc")
+        self.oidc_backend = OpenIDConnectBackend(Mock(), internal_attributes, backend_config, "base_url", "oidc", None,
+                                                 None)
 
     @pytest.fixture
     def backend_config(self):

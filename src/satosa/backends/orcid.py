@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class OrcidBackend(_OAuthBackend):
     """Orcid OAuth 2.0 backend"""
 
-    def __init__(self, outgoing, internal_attributes, config, base_url, name):
+    def __init__(self, outgoing, internal_attributes, config, base_url, name, storage, logout_callback_func):
         """Orcid backend constructor
         :param outgoing: Callback should be called by the module after the
             authorization in the backend is done.
@@ -31,6 +31,11 @@ class OrcidBackend(_OAuthBackend):
         :param config: configuration parameters for the module.
         :param base_url: base url of the service
         :param name: name of the plugin
+        :param storage: storage to hold the backend session information
+        :param logout_callback_func: Callback should be called by the module after the logout
+        in the backend is done. This may trigger log out flow for all the frontends associated
+        with the backend session
+
         :type outgoing:
             (satosa.context.Context, satosa.internal.InternalData) ->
             satosa.response.Response
@@ -38,12 +43,14 @@ class OrcidBackend(_OAuthBackend):
         :type config: dict[str, dict[str, str] | list[str] | str]
         :type base_url: str
         :type name: str
+        :type storage: satosa.storage.Storage
+        :type logout_callback_func: str
+        (satosa.context.Context, satosa.internal.InternalData) -> satosa.response.Response
         """
         config.setdefault('response_type', 'code')
         config['verify_accesstoken_state'] = False
-        super().__init__(
-            outgoing, internal_attributes, config, base_url, name, 'orcid',
-            'orcid')
+        super().__init__(outgoing, internal_attributes, config, base_url, name, 'orcid', 'orcid',
+                         storage, logout_callback_func)
 
     def get_request_args(self, get_state=stateID):
         oauth_state = get_state(self.config["base_url"], rndstr().encode())

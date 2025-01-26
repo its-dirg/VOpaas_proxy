@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 class GitHubBackend(_OAuthBackend):
     """GitHub OAuth 2.0 backend"""
 
-    def __init__(self, outgoing, internal_attributes, config, base_url, name):
+    def __init__(self, outgoing, internal_attributes, config, base_url, name, storage,
+                 logout_callback_func):
         """GitHub backend constructor
         :param outgoing: Callback should be called by the module after the
             authorization in the backend is done.
@@ -31,6 +32,11 @@ class GitHubBackend(_OAuthBackend):
         :param config: configuration parameters for the module.
         :param base_url: base url of the service
         :param name: name of the plugin
+        :param storage: storage to hold the backend session information
+        :param logout_callback_func: Callback should be called by the module after the logout
+        in the backend is done. This may trigger log out flow for all the frontends associated
+        with the backend session
+
         :type outgoing:
             (satosa.context.Context, satosa.internal.InternalData) ->
             satosa.response.Response
@@ -38,12 +44,14 @@ class GitHubBackend(_OAuthBackend):
         :type config: dict[str, dict[str, str] | list[str] | str]
         :type base_url: str
         :type name: str
+        :type storage: satosa.storage.Storage
+        :type logout_callback_func: str
+        (satosa.context.Context, satosa.internal.InternalData) -> satosa.response.Response
         """
         config.setdefault('response_type', 'code')
         config['verify_accesstoken_state'] = False
-        super().__init__(
-            outgoing, internal_attributes, config, base_url, name, 'github',
-            'id')
+        super().__init__(outgoing, internal_attributes, config, base_url, name, 'github', 'id',
+                         storage, logout_callback_func)
 
     def start_auth(self, context, internal_request, get_state=stateID):
         """

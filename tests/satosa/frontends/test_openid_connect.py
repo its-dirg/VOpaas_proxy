@@ -86,14 +86,14 @@ class TestOpenIDConnectFrontend(object):
 
         return config
 
-    def create_frontend(self, frontend_config):
+    def create_frontend(self, frontend_config, storage):
         # will use in-memory storage
         instance = OpenIDConnectFrontend(lambda ctx, req: None, INTERNAL_ATTRIBUTES,
-                                         frontend_config, BASE_URL, "oidc_frontend")
+                                         frontend_config, BASE_URL, "oidc_frontend", storage, None)
         instance.register_endpoints(["foo_backend"])
         return instance
 
-    def create_frontend_with_extra_scopes(self, frontend_config_with_extra_scopes):
+    def create_frontend_with_extra_scopes(self, frontend_config_with_extra_scopes, storage):
         # will use in-memory storage
         internal_attributes_with_extra_scopes = copy.deepcopy(INTERNAL_ATTRIBUTES)
         internal_attributes_with_extra_scopes["attributes"].update(EXTRA_CLAIMS)
@@ -102,18 +102,18 @@ class TestOpenIDConnectFrontend(object):
             internal_attributes_with_extra_scopes,
             frontend_config_with_extra_scopes,
             BASE_URL,
-            "oidc_frontend_with_extra_scopes",
+            "oidc_frontend_with_extra_scopes", storage, None
         )
         instance.register_endpoints(["foo_backend"])
         return instance
 
     @pytest.fixture
-    def frontend(self, frontend_config):
-        return self.create_frontend(frontend_config)
+    def frontend(self, frontend_config, storage):
+        return self.create_frontend(frontend_config, storage)
 
     @pytest.fixture
-    def frontend_with_extra_scopes(self, frontend_config_with_extra_scopes):
-        return self.create_frontend_with_extra_scopes(frontend_config_with_extra_scopes)
+    def frontend_with_extra_scopes(self, frontend_config_with_extra_scopes, storage):
+        return self.create_frontend_with_extra_scopes(frontend_config_with_extra_scopes, storage)
 
     @pytest.fixture
     def authn_req(self):
@@ -377,7 +377,7 @@ class TestOpenIDConnectFrontend(object):
     def test_register_endpoints_token_and_userinfo_endpoint_is_not_published_if_only_implicit_flow(
             self, frontend_config, context):
         frontend_config["provider"]["response_types_supported"] = ["id_token", "id_token token"]
-        frontend = self.create_frontend(frontend_config)
+        frontend = self.create_frontend(frontend_config, None)
 
         urls = frontend.register_endpoints(["test"])
         assert ("^{}/{}".format("test", TokenEndpoint.url), frontend.token_endpoint) not in urls
@@ -394,7 +394,7 @@ class TestOpenIDConnectFrontend(object):
     def test_register_endpoints_dynamic_client_registration_is_configurable(
             self, frontend_config, client_registration_enabled):
         frontend_config["provider"]["client_registration_supported"] = client_registration_enabled
-        frontend = self.create_frontend(frontend_config)
+        frontend = self.create_frontend(frontend_config, None)
 
         urls = frontend.register_endpoints(["test"])
         assert (("^{}/{}".format(frontend.name, RegistrationEndpoint.url),
@@ -406,10 +406,10 @@ class TestOpenIDConnectFrontend(object):
         True,
         False
     ])
-    def test_mirrored_subject(self, context, frontend_config, authn_req, sub_mirror_public):
+    def test_mirrored_subject(self, context, frontend_config, authn_req, sub_mirror_public, storage):
         frontend_config["sub_mirror_public"] = sub_mirror_public
         frontend_config["provider"]["subject_types_supported"] = ["public"]
-        frontend = self.create_frontend(frontend_config)
+        frontend = self.create_frontend(frontend_config, storage)
 
         self.insert_client_in_client_db(frontend, authn_req["redirect_uri"])
         internal_response = self.setup_for_authn_response(context, frontend, authn_req)
@@ -425,7 +425,7 @@ class TestOpenIDConnectFrontend(object):
     def test_token_endpoint(self, context, frontend_config, authn_req):
         token_lifetime = 60 * 60 * 24
         frontend_config["provider"]["access_token_lifetime"] = token_lifetime
-        frontend = self.create_frontend(frontend_config)
+        frontend = self.create_frontend(frontend_config, None)
 
         user_id = "test_user"
         self.insert_client_in_client_db(frontend, authn_req["redirect_uri"])
@@ -445,7 +445,7 @@ class TestOpenIDConnectFrontend(object):
         assert parsed["id_token"]
 
     def test_token_endpoint_with_extra_claims(self, context, frontend_config_with_extra_id_token_claims, authn_req):
-        frontend = self.create_frontend(frontend_config_with_extra_id_token_claims)
+        frontend = self.create_frontend(frontend_config_with_extra_id_token_claims, None)
 
         user_id = "test_user"
         self.insert_client_in_client_db(frontend, authn_req["redirect_uri"])
@@ -468,7 +468,7 @@ class TestOpenIDConnectFrontend(object):
     def test_token_endpoint_issues_refresh_tokens_if_configured(self, context, frontend_config, authn_req):
         frontend_config["provider"]["refresh_token_lifetime"] = 60 * 60 * 24 * 365
         frontend = OpenIDConnectFrontend(lambda ctx, req: None, INTERNAL_ATTRIBUTES,
-                                         frontend_config, BASE_URL, "oidc_frontend")
+                                         frontend_config, BASE_URL, "oidc_frontend", None, None)
         frontend.register_endpoints(["test_backend"])
 
         user_id = "test_user"

@@ -458,8 +458,9 @@ class FakeFrontend(FrontendModule):
 class TestBackend(BackendModule):
     __test__ = False
 
-    def __init__(self, auth_callback_func, internal_attributes, config, base_url, name):
-        super().__init__(auth_callback_func, internal_attributes, base_url, name)
+    def __init__(self, auth_callback_func, internal_attributes, config, base_url, name, storage,
+                 logout_callback_func):
+        super().__init__(auth_callback_func, internal_attributes, base_url, name, storage, logout_callback_func)
 
     def register_endpoints(self):
         return [("^{}/response$".format(self.name), self.handle_response)]
@@ -478,8 +479,9 @@ class TestBackend(BackendModule):
 class TestFrontend(FrontendModule):
     __test__ = False
 
-    def __init__(self, auth_req_callback_func, internal_attributes, config, base_url, name):
-        super().__init__(auth_req_callback_func, internal_attributes, base_url, name)
+    def __init__(self, auth_req_callback_func, internal_attributes, config, base_url, name, storage,
+                 logout_callback):
+        super().__init__(auth_req_callback_func, internal_attributes, base_url, name, storage)
 
     def register_endpoints(self, backend_names):
         url_map = [("^{}/{}/request$".format(p, self.name), self.handle_request) for p in backend_names]

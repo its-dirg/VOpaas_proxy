@@ -28,7 +28,9 @@ class TestOrcidBackend(object):
             internal_attributes,
             backend_config,
             backend_config["base_url"],
-            "orcid"
+            "orcid",
+            None,
+            None
         )
 
     @pytest.fixture

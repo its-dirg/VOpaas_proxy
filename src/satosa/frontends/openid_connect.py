@@ -4,13 +4,16 @@ A OpenID Connect frontend module for the satosa proxy
 
 import json
 import logging
+import uuid
+import requests
+import time
 from collections import defaultdict
 from urllib.parse import urlencode, urlparse
 
 from jwkest.jwk import rsa_load, RSAKey
 
 from oic.oic import scope2claims
-from oic.oic.message import AuthorizationRequest
+from oic.oic.message import AuthorizationRequest, LogoutToken
 from oic.oic.message import AuthorizationErrorResponse
 from oic.oic.message import TokenErrorResponse
 from oic.oic.message import UserInfoErrorResponse
@@ -56,9 +59,10 @@ class OpenIDConnectFrontend(FrontendModule):
     A OpenID Connect frontend module
     """
 
-    def __init__(self, auth_req_callback_func, internal_attributes, conf, base_url, name):
+    def __init__(self, auth_req_callback_func, internal_attributes, conf, base_url, name, storage,
+                 logout_callback):
         _validate_config(conf)
-        super().__init__(auth_req_callback_func, internal_attributes, base_url, name)
+        super().__init__(auth_req_callback_func, internal_attributes, base_url, name, storage)
 
         self.config = conf
         provider_config = self.config["provider"]
@@ -88,14 +92,14 @@ class OpenIDConnectFrontend(FrontendModule):
         client_db_uri = self.config.get("client_db_uri")
         cdb_file = self.config.get("client_db_path")
         if client_db_uri:
-            cdb = StorageBase.from_uri(
+            self.cdb = StorageBase.from_uri(
                 client_db_uri, db_name="satosa", collection="clients", ttl=None
             )
         elif cdb_file:
             with open(cdb_file) as f:
-                cdb = json.loads(f.read())
+                self.cdb = json.loads(f.read())
         else:
-            cdb = {}
+            self.cdb = {}
 
         self.endpoint_baseurl = "{}/{}".format(self.base_url, self.name)
         self.provider = _create_provider(
@@ -105,7 +109,7 @@ class OpenIDConnectFrontend(FrontendModule):
             self.signing_key,
             authz_state,
             self.user_db,
-            cdb,
+            self.cdb,
         )
 
     def _get_extra_id_token_claims(self, user_id, client_id):
@@ -144,6 +148,15 @@ class OpenIDConnectFrontend(FrontendModule):
 
         del context.state[self.name]
         http_response = auth_resp.request(auth_req["redirect_uri"], should_fragment_encode(auth_req))
+        frontend_sid = context.state.session_id
+        internal_resp.frontend_sid = frontend_sid
+
+        self.storage.store_frontend_session(
+            self.name,
+            internal_resp.requester,
+            internal_resp.subject_id,
+            frontend_sid)
+
         return SeeOther(http_response)
 
     def handle_backend_error(self, exception):
@@ -393,6 +406,64 @@ class OpenIDConnectFrontend(FrontendModule):
             response = Unauthorized(error_resp.to_json(), headers=[("WWW-Authenticate", AccessToken.BEARER_TOKEN_TYPE)],
                                     content="application/json")
             return response
+
+    def start_logout_from_backend(self, context, internal_request):
+        """
+        Performs the back-channel logout for the RP
+        :param context: the current context
+        :param internal_request: internalData containing the frontend sid
+        :return: whether the back-channel logout was successful or not
+
+        :type context: satosa.context.Context
+        :type internal_request: satosa.internal.InternalData
+        :rtype bool
+        """
+        logout_status = True
+        session = self.storage.get_frontend_session(internal_request.frontend_sid)
+        client = self.cdb[session.get("requester")]
+
+        if client.get("back_channel_logout_uri"):
+            try:
+                logout_token = LogoutToken(iss=self.base_url,
+                                           sub=session.get("subject_id"),
+                                           aud=session.get("requester"),
+                                           iat=int(time.time()),
+                                           jti=str(uuid.uuid4()),
+                                           events={"http://schemas.openid.net/event/backchannel-logout": {}},
+                                           sid=internal_request.frontend_sid
+                                           )
+
+                logout_token_str = logout_token.to_jwt([self.signing_key], "RS256")
+                logger.debug('signed logout_token {} using alg={}'.format(logout_token_str, "RS256"))
+                resp = requests.post(client.get("back_channel_logout_uri"), json={"logout_token": logout_token_str}, verify=False)
+
+                if resp.status_code == 200:
+                    self.storage.delete_frontend_session(internal_request.frontend_sid)
+                    msg = "RP with client id '{}' of the frontend name '{}' logged out successfully.".format(
+                        session.get("requester"), self.name)
+                    logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+                    logger.info(logline)
+                else:
+                    msg = "client {} could not log out successfully - received status code: {} and payload: {} " \
+                          "from the client.".format(
+                            session.get("requester"),
+                            resp.status_code,
+                            resp.content)
+
+                    logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+                    logger.warning(logline)
+                    logout_status = False
+            except Exception as e:
+                msg = "client {} could not log out successfully - encountered error: {}".format(
+                    session.get("requester"), e)
+                logline = lu.LOG_FMT.format(id=lu.get_session_id(context.state), message=msg)
+                logger.warning(logline)
+                logout_status = False
+        else:
+            logger.info(
+                lu.LOG_FMT.format(id=lu.get_session_id(context.state),
+                                  message="client {} does not support logout").format(session.get("requester")))
+        return logout_status
 
 
 def _validate_config(config):

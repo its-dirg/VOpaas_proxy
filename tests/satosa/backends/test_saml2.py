@@ -91,7 +91,7 @@ class TestSAMLBackend:
         self.samlbackend = SAMLBackend(Mock(), INTERNAL_ATTRIBUTES, {"sp_config": sp_conf,
                                                                      "disco_srv": DISCOSRV_URL},
                                        "base_url",
-                                       "samlbackend")
+                                       "samlbackend", None, None)
 
     def test_register_endpoints(self, sp_conf):
         """
@@ -172,7 +172,8 @@ class TestSAMLBackend:
     def test_redirect_to_idp_if_only_one_idp_in_metadata(self, context, sp_conf, idp_conf):
         sp_conf["metadata"]["inline"] = [create_metadata_from_config_dict(idp_conf)]
         # instantiate new backend, without any discovery service configured
-        samlbackend = SAMLBackend(None, INTERNAL_ATTRIBUTES, {"sp_config": sp_conf}, "base_url", "saml_backend")
+        samlbackend = SAMLBackend(None, INTERNAL_ATTRIBUTES, {"sp_config": sp_conf}, "base_url", "saml_backend", None,
+                                  None)
 
         resp = samlbackend.start_auth(context, InternalData())
         assert_redirect_to_idp(resp, idp_conf)
@@ -217,6 +218,8 @@ class TestSAMLBackend:
             config,
             "base_url",
             "samlbackend",
+            None,
+            None
         )
         resp = self.samlbackend.authn_request(context, entity_id)
         req_params = dict(parse_qsl(urlparse(resp.message).query))
@@ -335,6 +338,8 @@ class TestSAMLBackend:
             {"sp_config": sp_conf, "disco_srv": DISCOSRV_URL},
             "base_url",
             "samlbackend",
+            None,
+            None
         )
         response_binding = BINDING_HTTP_REDIRECT
         relay_state = "test relay state"
@@ -370,7 +375,7 @@ class TestSAMLBackend:
         sp_conf["key_file"] = os.path.join(TEST_RESOURCE_BASE_PATH, "encryption_key.pem")
         samlbackend = SAMLBackend(Mock(), INTERNAL_ATTRIBUTES, {"sp_config": sp_conf,
                                                                 "disco_srv": DISCOSRV_URL},
-                                  "base_url", "samlbackend")
+                                  "base_url", "samlbackend", None, None)
         assert samlbackend.encryption_keys
 
     def test_backend_reads_encryption_key_from_encryption_keypair(self, sp_conf):
@@ -378,7 +383,7 @@ class TestSAMLBackend:
         sp_conf["encryption_keypairs"] = [{"key_file": os.path.join(TEST_RESOURCE_BASE_PATH, "encryption_key.pem")}]
         samlbackend = SAMLBackend(Mock(), INTERNAL_ATTRIBUTES, {"sp_config": sp_conf,
                                                                 "disco_srv": DISCOSRV_URL},
-                                  "base_url", "samlbackend")
+                                  "base_url", "samlbackend", None, None)
         assert samlbackend.encryption_keys
 
     def test_metadata_endpoint(self, context, sp_conf):
@@ -390,7 +395,8 @@ class TestSAMLBackend:
     def test_get_metadata_desc(self, sp_conf, idp_conf):
         sp_conf["metadata"]["inline"] = [create_metadata_from_config_dict(idp_conf)]
         # instantiate new backend, with a single backing IdP
-        samlbackend = SAMLBackend(None, INTERNAL_ATTRIBUTES, {"sp_config": sp_conf}, "base_url", "saml_backend")
+        samlbackend = SAMLBackend(None, INTERNAL_ATTRIBUTES, {"sp_config": sp_conf}, "base_url", "saml_backend", None,
+                                  None)
         entity_descriptions = samlbackend.get_metadata_desc()
 
         assert len(entity_descriptions) == 1
@@ -417,7 +423,8 @@ class TestSAMLBackend:
 
         sp_conf["metadata"]["inline"] = [create_metadata_from_config_dict(idp_conf)]
         # instantiate new backend, with a single backing IdP
-        samlbackend = SAMLBackend(None, INTERNAL_ATTRIBUTES, {"sp_config": sp_conf}, "base_url", "saml_backend")
+        samlbackend = SAMLBackend(None, INTERNAL_ATTRIBUTES, {"sp_config": sp_conf}, "base_url", "saml_backend", None,
+                                  None)
         entity_descriptions = samlbackend.get_metadata_desc()
 
         assert len(entity_descriptions) == 1
@@ -446,7 +453,7 @@ class TestSAMLBackendRedirects:
         sp_conf["metadata"]["inline"] = [create_metadata_from_config_dict(idp_conf)]
         sp_conf["metadata"]["mdq"] = ["https://mdq.example.com"]
         samlbackend = SAMLBackend(None, INTERNAL_ATTRIBUTES, {"sp_config": sp_conf, "disco_srv": DISCOSRV_URL,},
-                                  "base_url", "saml_backend")
+                                  "base_url", "saml_backend", None, None)
         resp = samlbackend.start_auth(context, InternalData())
         assert_redirect_to_discovery_server(resp, sp_conf, DISCOSRV_URL)
 
@@ -462,21 +469,21 @@ class TestSAMLBackendRedirects:
             SAMLBackend.KEY_MEMORIZE_IDP: True,
         }
         samlbackend = SAMLBackend(
-            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend"
+            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend", None, None
         )
         resp = samlbackend.start_auth(context, InternalData())
         assert_redirect_to_discovery_server(resp, sp_conf, DISCOSRV_URL)
 
         context.state[Context.KEY_MEMORIZED_IDP] = idp_conf["entityid"]
         samlbackend = SAMLBackend(
-            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend"
+            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend", None, None
         )
         resp = samlbackend.start_auth(context, InternalData())
         assert_redirect_to_idp(resp, idp_conf)
 
         backend_conf[SAMLBackend.KEY_MEMORIZE_IDP] = False
         samlbackend = SAMLBackend(
-            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend"
+            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend", None, None
         )
         resp = samlbackend.start_auth(context, InternalData())
         assert_redirect_to_discovery_server(resp, sp_conf, DISCOSRV_URL)
@@ -485,7 +492,7 @@ class TestSAMLBackendRedirects:
         context.state[Context.KEY_MEMORIZED_IDP] = idp_conf["entityid"]
         backend_conf[SAMLBackend.KEY_USE_MEMORIZED_IDP_WHEN_FORCE_AUTHN] = True
         samlbackend = SAMLBackend(
-            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend"
+            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend", None, None
         )
         resp = samlbackend.start_auth(context, InternalData())
         assert_redirect_to_discovery_server(resp, sp_conf, DISCOSRV_URL)
@@ -506,14 +513,14 @@ class TestSAMLBackendRedirects:
             SAMLBackend.KEY_MIRROR_FORCE_AUTHN: True,
         }
         samlbackend = SAMLBackend(
-            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend"
+            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend", None, None
         )
         resp = samlbackend.start_auth(context, InternalData())
         assert_redirect_to_discovery_server(resp, sp_conf, DISCOSRV_URL)
 
         backend_conf[SAMLBackend.KEY_USE_MEMORIZED_IDP_WHEN_FORCE_AUTHN] = True
         samlbackend = SAMLBackend(
-            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend"
+            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend", None, None
         )
         resp = samlbackend.start_auth(context, InternalData())
         assert_redirect_to_idp(resp, idp_conf)
@@ -534,14 +541,14 @@ class TestSAMLBackendRedirects:
             SAMLBackend.KEY_MIRROR_FORCE_AUTHN: True,
         }
         samlbackend = SAMLBackend(
-            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend"
+            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend", None, None
         )
         resp = samlbackend.start_auth(context, InternalData())
         assert_redirect_to_discovery_server(resp, sp_conf, DISCOSRV_URL)
 
         backend_conf[SAMLBackend.KEY_USE_MEMORIZED_IDP_WHEN_FORCE_AUTHN] = True
         samlbackend = SAMLBackend(
-            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend"
+            None, INTERNAL_ATTRIBUTES, backend_conf, "base_url", "saml_backend", None, None
         )
         resp = samlbackend.start_auth(context, InternalData())
         assert_redirect_to_idp(resp, idp_conf)

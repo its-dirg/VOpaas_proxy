@@ -75,7 +75,7 @@ class TestBitBucketBackend(object):
     @pytest.fixture(autouse=True)
     def create_backend(self):
         self.bb_backend = BitBucketBackend(Mock(), INTERNAL_ATTRIBUTES,
-                                           BB_CONFIG, "base_url", "bitbucket")
+                                           BB_CONFIG, "base_url", "bitbucket", None, None)
 
     @pytest.fixture
     def incoming_authn_response(self, context):

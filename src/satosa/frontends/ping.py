@@ -14,8 +14,9 @@ class PingFrontend(FrontendModule):
     200 OK, intended to be used as a simple heartbeat monitor.
     """
 
-    def __init__(self, auth_req_callback_func, internal_attributes, config, base_url, name):
-        super().__init__(auth_req_callback_func, internal_attributes, base_url, name)
+    def __init__(self, auth_req_callback_func, internal_attributes, config, base_url, name, storage,
+                 logout_callback):
+        super().__init__(auth_req_callback_func, internal_attributes, base_url, name, storage)
 
         self.config = config
 

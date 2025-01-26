@@ -65,7 +65,7 @@ mock_get_state = Mock(return_value="abcdef")
 class TestFacebookBackend(object):
     @pytest.fixture(autouse=True)
     def create_backend(self):
-        self.fb_backend = FacebookBackend(Mock(), INTERNAL_ATTRIBUTES, FB_CONFIG, "base_url", "facebook")
+        self.fb_backend = FacebookBackend(Mock(), INTERNAL_ATTRIBUTES, FB_CONFIG, "base_url", "facebook", None, None)
 
     @pytest.fixture
     def incoming_authn_response(self, context):
